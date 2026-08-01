@@ -1,20 +1,28 @@
-from django.http import JsonResponse
-from .services.open_meteo import get_weather
+class AlertEngine:
+
+    def generate_alerts(self, weather):
+
+        alerts = []
+
+        if weather["temperature"] > 40:
+            alerts.append("High temperature. Increase irrigation.")
+
+        if weather["temperature"] < 10:
+            alerts.append("Low temperature. Protect crops from cold.")
+
+        if weather["rainfall"] > 20:
+            alerts.append("Heavy rainfall expected. Avoid irrigation.")
+
+        if weather["rainfall"] == 0:
+            alerts.append("No rainfall expected. Irrigation may be required.")
+
+        if weather["wind_speed"] > 30:
+            alerts.append("Strong winds expected. Secure crops.")
+
+        if weather["humidity"] > 90:
+            alerts.append("High humidity. Monitor crops for fungal diseases.")
+
+        return alerts
 
 
-def weather_api(request):
-    latitude = request.GET.get("latitude")
-    longitude = request.GET.get("longitude")
-
-    if not latitude or not longitude:
-        return JsonResponse(
-            {
-                "success": False,
-                "message": "Latitude and Longitude are required."
-            },
-            status=400,
-        )
-
-    result = get_weather(latitude, longitude)
-
-    return JsonResponse(result)
+alert_engine = AlertEngine()
