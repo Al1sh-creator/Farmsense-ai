@@ -1,5 +1,6 @@
 from django.urls import path
+from .views import crop_recommendation
 
 urlpatterns = [
-    # Routes will be added later
+    path("recommend/", crop_recommendation),
 ]
