@@ -3,6 +3,9 @@ from rest_framework import serializers
 
 class SuggestionSerializer(serializers.Serializer):
 
+    user_query = serializers.CharField(required=False, allow_blank=True, default="")
+    history = serializers.DictField(required=False, default=dict)
+
     # Crop Recommendation
     N = serializers.FloatField()
     P = serializers.FloatField()
