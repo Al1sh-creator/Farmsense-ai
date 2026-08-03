@@ -29,3 +29,11 @@ whitenoise==6.8.2
 
 # ── Date/Time Handling (weather + season logic) ─
 python-dateutil==2.9.0.post0
+
+# ── AI / RAG Module ──────────────────────────────
+langchain
+langchain-community
+langchain-ollama
+langchain-chroma
+chromadb
+pypdf

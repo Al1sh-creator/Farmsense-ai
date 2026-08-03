@@ -89,6 +89,8 @@ def generate_suggestion(request):
         fertilizer_data,
         irrigation_data,
         yield_data,
+        user_query=data.get("user_query", ""),
+        history=data.get("history", {})
     )
 
     return Response(result)

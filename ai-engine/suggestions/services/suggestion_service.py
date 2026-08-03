@@ -2,7 +2,7 @@ from crops.services.crop_service import crop_service
 from crops.services.fertilizer_service import fertilizer_service
 from crops.services.irrigation_service import irrigation_service
 from crops.services.yield_service import yield_service
-from suggestions.rules.recommendation_rules import recommendation_rules
+from ai.decision_engine.decision_engine import decision_engine
 from weather.services.weather_service import weather_service
 
 class SuggestionService:
@@ -15,7 +15,11 @@ class SuggestionService:
         yield_data,
         latitude=None,
         longitude=None,
+        user_query="",
+        history=None,
     ):
+        if history is None:
+            history = {}
 
         crop = crop_service.predict(crop_data)
 
@@ -25,28 +29,29 @@ class SuggestionService:
 
         predicted_yield = yield_service.predict(yield_data)
 
-        rules = recommendation_rules.generate(
-            crop,
-            fertilizer,
-            irrigation,
-            predicted_yield,
-        )
-
         weather = None
 
         if latitude and longitude:
             weather = weather_service.get_weather(latitude, longitude)
 
-        return {
+        ml_predictions = {
             "recommended_crop": crop,
             "recommended_fertilizer": fertilizer,
             "irrigation_need": irrigation,
             "predicted_yield": predicted_yield,
+        }
 
+        ai_response = decision_engine.generate_recommendation(
+            user_query=user_query,
+            ml_predictions=ml_predictions,
+            weather=weather,
+            history=history
+        )
+
+        return {
+            "ml_predictions": ml_predictions,
             "weather": weather,
-
-            "risk_level": rules["risk_level"],
-            "recommendations": rules["recommendations"],
+            "ai_recommendation": ai_response
         }
 
 suggestion_service = SuggestionService()
