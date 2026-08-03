@@ -141,49 +141,46 @@ router.post('/run', auth, requireProfile, async (req, res, next) => {
             });
         }
 
-        // ── TODO: Call Django AI pipeline ────────
-        // When Django is ready, replace mock data with:
-        // const aiEngineClient = require('../services/aiEngineClient');
-        // const aiResult = await aiEngineClient.runFullPipeline(farm);
+        const aiClient = require('../services/aiEngineClient');
+        
+        // Fetch weather
+        let weatherForecast = [];
+        try {
+            weatherForecast = (await aiClient.getWeatherForecast(farm.latitude, farm.longitude)) || [];
+        } catch(e) {
+            console.error('Weather error during analysis:', e);
+        }
 
-        // ── Mock AI Result (until Django is ready) ─
-        const mockAnalysis = {
-            recommended_crop:          'cotton',
-            crop_suitability_score:    87.3,
-            all_crop_recommendations:  [
-                { crop: 'cotton', score: 87.3 },
-                { crop: 'maize',  score: 71.2 },
-                { crop: 'rice',   score: 65.8 },
-            ],
-            recommended_fertilizer:    'DAP',
-            fertilizer_quantity:       '50 kg/acre',
-            fertilizer_timing:         'Apply within next 3 days before rain',
-            irrigation_need:           'Medium',
-            water_amount_mm:           35.0,
-            next_irrigation_date:      new Date(Date.now() + 4 * 86400000)
-                                           .toISOString().split('T')[0],
-            irrigation_frequency:      'Every 4 days',
-            predicted_yield_per_acre:  8.5,
-            total_predicted_yield:     8.5 * farm.farm_area,
-            yield_confidence:          'medium',
-            market_price_per_quintal:  6200,
-            gross_revenue:             (8.5 * farm.farm_area) * 6200,
-            total_input_cost:          18000 * farm.farm_area,
-            net_profit:                ((8.5 * farm.farm_area) * 6200)
-                                       - (18000 * farm.farm_area),
-            roi_percent:               parseFloat(
-                                         ((((8.5 * farm.farm_area) * 6200)
-                                         - (18000 * farm.farm_area))
-                                         / (18000 * farm.farm_area) * 100)
-                                         .toFixed(1)
-                                       ),
+        // Run AI pipeline
+        const aiResult = await aiClient.generateSuggestions(farm, weatherForecast);
+        const preds = aiResult.ml_predictions;
+
+        const analysisData = {
+            recommended_crop:          preds.recommended_crop || 'Unknown',
+            crop_suitability_score:    0, // not provided by basic model
+            all_crop_recommendations:  [{ crop: preds.recommended_crop, score: 100 }],
+            recommended_fertilizer:    preds.recommended_fertilizer || 'Unknown',
+            fertilizer_quantity:       'Based on AI recommendation',
+            fertilizer_timing:         'Based on AI recommendation',
+            irrigation_need:           preds.irrigation_need || 'Unknown',
+            water_amount_mm:           0,
+            next_irrigation_date:      new Date(Date.now() + 86400000).toISOString().split('T')[0],
+            irrigation_frequency:      'AI recommended',
+            predicted_yield_per_acre:  preds.predicted_yield || 0,
+            total_predicted_yield:     (preds.predicted_yield || 0) * farm.farm_area,
+            yield_confidence:          'high',
+            market_price_per_quintal:  0, // Would come from price API
+            gross_revenue:             0,
+            total_input_cost:          0,
+            net_profit:                0,
+            roi_percent:               0,
             season:                    farm.current_season,
             weather_snapshot: {
-                avg_temp:     32.1,
-                avg_humidity: 74,
-                rainfall:     85,
-                source:       'mock_data'
+                temp: weatherForecast?.[0]?.temp_max || 30,
+                rainfall: weatherForecast?.[0]?.rainfall || 0,
+                source: 'open-meteo'
             },
+            full_analysis: aiResult
         };
 
         // Save analysis result to DB
@@ -209,27 +206,27 @@ router.post('/run', auth, requireProfile, async (req, res, next) => {
             ) RETURNING id, created_at`,
             [
                 farm.id,
-                mockAnalysis.recommended_crop,
-                mockAnalysis.crop_suitability_score,
-                JSON.stringify(mockAnalysis.all_crop_recommendations),
-                mockAnalysis.recommended_fertilizer,
-                mockAnalysis.fertilizer_quantity,
-                mockAnalysis.fertilizer_timing,
-                mockAnalysis.irrigation_need,
-                mockAnalysis.water_amount_mm,
-                mockAnalysis.next_irrigation_date,
-                mockAnalysis.irrigation_frequency,
-                mockAnalysis.predicted_yield_per_acre,
-                mockAnalysis.total_predicted_yield,
-                mockAnalysis.yield_confidence,
-                mockAnalysis.market_price_per_quintal,
-                mockAnalysis.gross_revenue,
-                mockAnalysis.total_input_cost,
-                mockAnalysis.net_profit,
-                mockAnalysis.roi_percent,
-                mockAnalysis.season,
-                JSON.stringify(mockAnalysis.weather_snapshot),
-                JSON.stringify(mockAnalysis),
+                analysisData.recommended_crop,
+                analysisData.crop_suitability_score,
+                JSON.stringify(analysisData.all_crop_recommendations),
+                analysisData.recommended_fertilizer,
+                analysisData.fertilizer_quantity,
+                analysisData.fertilizer_timing,
+                analysisData.irrigation_need,
+                analysisData.water_amount_mm,
+                analysisData.next_irrigation_date,
+                analysisData.irrigation_frequency,
+                analysisData.predicted_yield_per_acre,
+                analysisData.total_predicted_yield,
+                analysisData.yield_confidence,
+                analysisData.market_price_per_quintal,
+                analysisData.gross_revenue,
+                analysisData.total_input_cost,
+                analysisData.net_profit,
+                analysisData.roi_percent,
+                analysisData.season,
+                JSON.stringify(analysisData.weather_snapshot),
+                JSON.stringify(analysisData.full_analysis),
             ]
         );
 
@@ -241,18 +238,31 @@ router.post('/run', auth, requireProfile, async (req, res, next) => {
             [farm.id]
         );
 
+        // Generate actual textual AI suggestions for AI Suggestions table
+        // Normally done in the background, but let's insert the LLM response as a suggestion
+        await pool.query(
+            `INSERT INTO ai_suggestions (
+                farm_id, category, title, suggestion_text, priority, valid_for_date
+            ) VALUES ($1, $2, $3, $4, $5, CURRENT_DATE)`,
+            [
+                farm.id, 
+                'all', 
+                'FarmSense AI Daily Briefing', 
+                aiResult.ai_recommendation, 
+                'high'
+            ]
+        );
+
         res.json({
             success: true,
             message: 'AI analysis completed successfully',
             analysis_id: saved.rows[0].id,
             created_at: saved.rows[0].created_at,
-            note: 'Mock data used — Django AI engine will replace this',
             summary: {
-                recommended_crop:  mockAnalysis.recommended_crop,
-                suitability_score: mockAnalysis.crop_suitability_score,
-                net_profit:        mockAnalysis.net_profit,
-                irrigation_need:   mockAnalysis.irrigation_need,
-                fertilizer:        mockAnalysis.recommended_fertilizer,
+                recommended_crop:  analysisData.recommended_crop,
+                predicted_yield:   analysisData.predicted_yield_per_acre,
+                irrigation_need:   analysisData.irrigation_need,
+                fertilizer:        analysisData.recommended_fertilizer,
             }
         });
 

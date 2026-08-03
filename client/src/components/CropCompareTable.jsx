@@ -11,11 +11,20 @@ import {
 export default function CropCompareTable({ results = [] }) {
   if (!results.length) return null
 
-  const chartData = results.map((r) => ({
-    name:    r.crop_name,
-    Yield:   r.yield_quintal,
-    Profit:  r.profit_per_acre,
-    Score:   Math.round(r.suitability_score * 100),
+  // Normalize data to handle both mock format and real backend format
+  const normalizedResults = results.map(r => ({
+    crop_name: r.crop_name,
+    suitability_score: r.soil_suitability_score !== undefined ? r.soil_suitability_score : Math.round(r.suitability_score * 100),
+    yield_quintal: r.total_yield_quintal ?? r.yield_quintal,
+    profit_per_acre: r.net_profit ?? r.profit_per_acre,
+    market_price: r.market_price_per_quintal ?? r.market_price,
+  }))
+
+  const chartData = normalizedResults.map((r) => ({
+    name: r.crop_name,
+    Yield: r.yield_quintal,
+    Profit: r.profit_per_acre,
+    Score: r.suitability_score,
   }))
 
   return (
@@ -33,7 +42,7 @@ export default function CropCompareTable({ results = [] }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {results.map((r, i) => (
+            {normalizedResults.map((r, i) => (
               <tr key={r.crop_name} className={`hover:bg-background transition-colors ${i === 0 ? 'bg-light/40' : ''}`}>
                 <td className="px-5 py-3.5 font-semibold text-gray-800">
                   {i === 0 && <span className="mr-1.5">🥇</span>}
@@ -44,11 +53,11 @@ export default function CropCompareTable({ results = [] }) {
                     <div className="flex-1 bg-gray-100 rounded-full h-1.5 max-w-[80px]">
                       <div
                         className="bg-secondary h-1.5 rounded-full"
-                        style={{ width: `${Math.round(r.suitability_score * 100)}%` }}
+                        style={{ width: `${r.suitability_score}%` }}
                       />
                     </div>
                     <span className="font-stat text-gray-700">
-                      {Math.round(r.suitability_score * 100)}%
+                      {r.suitability_score}%
                     </span>
                   </div>
                 </td>
@@ -78,8 +87,8 @@ export default function CropCompareTable({ results = [] }) {
             />
             <Legend wrapperStyle={{ fontSize: 12 }} />
             <Bar dataKey="Profit" fill="#2D6A4F" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="Yield"  fill="#52B788" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="Score"  fill="#4361EE" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="Yield" fill="#52B788" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="Score" fill="#4361EE" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>

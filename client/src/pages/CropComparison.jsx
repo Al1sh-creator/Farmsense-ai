@@ -1,36 +1,47 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Sidebar from '../components/Sidebar'
 import Navbar from '../components/Navbar'
 import CropCompareTable from '../components/CropCompareTable'
 import { useAuth } from '../context/AuthContext'
-import { compareCrops } from '../api/cropApi'
+import { compareCrops, getCropsList } from '../api/cropApi'
 import { getMyFarm } from '../api/farmApi'
 import { MOCK_CROP_COMPARISON } from '../mock/mockData'
 
-const SEASONS = ['kharif', 'rabi', 'zaid']
-
-const COMMON_CROPS = [
-  { id: 1, name: 'Kapas (Cotton)'   },
-  { id: 2, name: 'Gehu (Wheat)'     },
-  { id: 3, name: 'Moong'            },
-  { id: 4, name: 'Groundnut'        },
-  { id: 5, name: 'Castor'           },
-  { id: 6, name: 'Bajra'            },
-  { id: 7, name: 'Jowar'            },
-  { id: 8, name: 'Mustard'          },
-]
+const SEASONS = ['Kharif', 'Rabi', 'Zaid']
 
 export default function CropComparison() {
   const { isDemo }            = useAuth()
-  const [season, setSeason]   = useState('kharif')
+  const [season, setSeason]   = useState('Kharif')
   const [landSize, setLandSize] = useState('')
+  const [availableCrops, setAvailableCrops] = useState([])
   const [selected, setSelected] = useState([])
   const [results, setResults]   = useState([])
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState('')
 
-  const toggleCrop = (id) =>
-    setSelected((prev) => prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id])
+  useEffect(() => {
+    if (isDemo) {
+      setAvailableCrops([
+        { key: 'cotton', name: 'Kapas (Cotton)' },
+        { key: 'wheat', name: 'Gehu (Wheat)' },
+        { key: 'mungbean', name: 'Moong' },
+        { key: 'groundnut', name: 'Groundnut' },
+        { key: 'mustard', name: 'Mustard' },
+      ])
+      return
+    }
+    // Fetch real crops from backend based on selected season
+    getCropsList(season)
+      .then(res => {
+        setAvailableCrops(res.data.crops || [])
+        // clear selections if they are no longer in season
+        setSelected([])
+      })
+      .catch(console.error)
+  }, [isDemo, season])
+
+  const toggleCrop = (key) =>
+    setSelected((prev) => prev.includes(key) ? prev.filter((c) => c !== key) : [...prev, key])
 
   const handleCompare = async () => {
     if (selected.length < 2) { setError('Select at least 2 crops to compare.'); return }
@@ -49,10 +60,11 @@ export default function CropComparison() {
     try {
       const farmRes = await getMyFarm()
       const farmId  = farmRes.data.farm?.id
-      const res = await compareCrops({ farm_id: farmId, season, crop_ids: selected, land_size: parseFloat(landSize) })
+      const res = await compareCrops({ farm_id: farmId, season, crop_keys: selected, land_size: parseFloat(landSize) })
       setResults(res.data.results || res.data.comparison || [])
     } catch (err) {
-      setError(err.response?.data?.message || 'Comparison failed. Try again.')
+      const errorMsg = err.response?.data?.error || err.response?.data?.message || 'Comparison failed. Try again.'
+      setError(Array.isArray(errorMsg) ? errorMsg.map(e => e.message).join(', ') : errorMsg)
     } finally {
       setLoading(false)
     }
@@ -101,19 +113,23 @@ export default function CropComparison() {
 
             <label className="label">Select Crops to Compare (min 2)</label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
-              {COMMON_CROPS.map(({ id, name }) => (
-                <button key={id} onClick={() => toggleCrop(id)}
-                  className={`px-3 py-2.5 rounded-xl text-sm font-body font-medium border transition-all
-                    ${selected.includes(id)
-                      ? 'bg-primary text-white border-primary'
-                      : 'bg-white text-gray-600 border-gray-200 hover:border-secondary hover:text-secondary'
-                    }`}>
-                  {name}
-                </button>
-              ))}
+              {availableCrops.length === 0 ? (
+                <p className="text-gray-400 text-sm italic col-span-full">No crops found for this season.</p>
+              ) : (
+                availableCrops.map(({ key, name }) => (
+                  <button key={key} onClick={() => toggleCrop(key)}
+                    className={`px-3 py-2.5 rounded-xl text-sm font-body font-medium border transition-all
+                      ${selected.includes(key)
+                        ? 'bg-primary text-white border-primary'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-secondary hover:text-secondary'
+                      }`}>
+                    {name}
+                  </button>
+                ))
+              )}
             </div>
 
-            <button onClick={handleCompare} disabled={loading} id="btn-compare-crops" className="btn-primary w-full sm:w-auto">
+            <button onClick={handleCompare} disabled={loading || availableCrops.length < 2} id="btn-compare-crops" className="btn-primary w-full sm:w-auto">
               {loading ? (
                 <span className="flex items-center gap-2">
                   <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />

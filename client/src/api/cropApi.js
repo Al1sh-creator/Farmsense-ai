@@ -1,4 +1,6 @@
 import api from './apiClient'
 
-// Body: { farm_id, season, crop_ids[], land_size }
+export const getCropsList = (season = '') => api.get(`/api/crops/list${season ? `?season=${season}` : ''}`)
+
+// Body: { farm_id, season, crop_keys[], land_size }
 export const compareCrops = (data) => api.post('/api/crops/compare', data)

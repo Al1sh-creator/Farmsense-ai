@@ -188,4 +188,69 @@ router.get('/history', auth, requireProfile, async (req, res, next) => {
     }
 });
 
+// ==============================================
+// POST /api/suggestions/ask
+// Chat with FarmSense AI Assistant
+// ==============================================
+router.post('/ask', auth, requireProfile, async (req, res, next) => {
+    try {
+        const { user_query, history } = req.body;
+
+        // Get farm details
+        const farmResult = await pool.query(
+            'SELECT * FROM farms WHERE user_id = $1',
+            [req.user.id]
+        );
+
+        if (farmResult.rows.length === 0) {
+            throw new AppError('Farm not found', 404);
+        }
+        const farm = farmResult.rows[0];
+
+        // Fetch basic weather to include
+        let weatherForecast = [];
+        try {
+            const aiClient = require('../services/aiEngineClient');
+            weatherForecast = (await aiClient.getWeatherForecast(farm.latitude, farm.longitude)) || [];
+        } catch (e) {
+            console.error('Weather error in askAI:', e);
+        }
+
+        const aiClient = require('../services/aiEngineClient');
+        const aiResult = await aiClient.generateSuggestions(farm, weatherForecast, user_query, history);
+
+        const aiRec = aiResult.ai_recommendation;
+        let responseString = '';
+
+        if (typeof aiRec === 'string') {
+            responseString = aiRec;
+        } else if (typeof aiRec === 'object') {
+            if (aiRec.answer) {
+                responseString = aiRec.answer;
+            } else {
+                if (aiRec.explanation) responseString += `${aiRec.explanation}\n\n`;
+                if (aiRec.crop_recommendation) responseString += `🌱 **Crop:** ${aiRec.crop_recommendation}\n`;
+                if (aiRec.fertilizer_recommendation) responseString += `🧪 **Fertilizer:** ${aiRec.fertilizer_recommendation}\n`;
+                if (aiRec.irrigation_advice) responseString += `💧 **Irrigation:** ${aiRec.irrigation_advice}\n`;
+                if (aiRec.disease_prevention) responseString += `🐛 **Disease Prevention:** ${aiRec.disease_prevention}\n`;
+                
+                if (!responseString) {
+                    responseString = JSON.stringify(aiRec, null, 2);
+                }
+            }
+        } else {
+            responseString = 'I could not generate a response. Please try again.';
+        }
+
+        res.json({
+            success: true,
+            response: responseString.trim(),
+            ml_predictions: aiResult.ml_predictions
+        });
+
+    } catch (err) {
+        next(err);
+    }
+});
+
 module.exports = router;

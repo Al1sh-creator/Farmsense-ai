@@ -43,8 +43,8 @@ djangoClient.interceptors.response.use(
 const getWeatherForecast = async (lat, lon) => {
     try {
         const response = await djangoClient.get(
-            '/api/weather/forecast/',
-            { params: { lat, lon } }
+            '/api/weather/current/',
+            { params: { latitude: lat, longitude: lon } }
         );
         return response.data;
     } catch (err) {
@@ -147,29 +147,76 @@ const compareCrops = async (farm, cropKeys, landSize) => {
 
 // ==============================================
 // 5. Generate AI Suggestions
-// POST /api/suggestions/generate/
+// POST /api/suggestions/
 // ==============================================
-const generateSuggestions = async (farm, weatherForecast) => {
+const generateSuggestions = async (farm, weatherForecast, userQuery = "", history = {}) => {
     try {
-        const response = await djangoClient.post(
-            '/api/suggestions/generate/',
-            {
-                farm_id:          farm.id,
-                soil_type:        farm.soil_type,
-                nitrogen:         farm.npk_nitrogen,
-                phosphorus:       farm.npk_phosphorus,
-                potassium:        farm.npk_potassium,
-                ph:               farm.ph_level,
-                current_crop:     farm.current_crop,
-                sow_date:         farm.sow_date,
-                season:           farm.current_season,
-                irrigation_type:  farm.irrigation_type,
-                weather_forecast: weatherForecast,
-            }
-        );
+        const temp = weatherForecast?.[0]?.temp_max || 30;
+        const hum = 60; // default humidity fallback
+        const rain = weatherForecast?.[0]?.rainfall || 0;
+        
+        const payload = {
+            user_query: userQuery,
+            history: history,
+
+            // Crop Recommendation
+            N: farm.npk_nitrogen || 50,
+            P: farm.npk_phosphorus || 50,
+            K: farm.npk_potassium || 50,
+            temperature: temp,
+            humidity: hum,
+            ph: farm.ph_level || 6.5,
+            rainfall: rain * 30, // estimate monthly
+
+            // Fertilizer
+            Soil_Type: farm.soil_type || 'Loamy',
+            Crop_Type: farm.current_crop || 'Unknown',
+            Crop_Growth_Stage: farm.crop_stage || 'Vegetative',
+            Season: farm.current_season || 'Kharif',
+            Irrigation_Type: farm.irrigation_type || 'Rainfed',
+            Previous_Crop: 'Unknown',
+            Region: farm.district || 'Unknown',
+
+            Soil_pH: farm.ph_level || 6.5,
+            Soil_Moisture: 40,
+            Organic_Carbon: 0.5,
+            Electrical_Conductivity: 0.5,
+
+            Nitrogen_Level: farm.npk_nitrogen || 50,
+            Phosphorus_Level: farm.npk_phosphorus || 50,
+            Potassium_Level: farm.npk_potassium || 50,
+
+            Temperature: temp,
+            Humidity: hum,
+            Rainfall: rain,
+
+            Fertilizer_Used_Last_Season: 0,
+            Yield_Last_Season: 0,
+
+            // Irrigation
+            Temperature_C: temp,
+            Rainfall_mm: rain,
+            Sunlight_Hours: 8,
+            Wind_Speed_kmh: 10,
+            Water_Source: farm.water_source || 'Borewell',
+            Field_Area_hectare: (farm.farm_area || 1) * 0.4047,
+            Mulching_Used: 'No',
+            Previous_Irrigation_mm: 0,
+
+            // Yield
+            Crop_Year: new Date().getFullYear(),
+            State: farm.state || 'Unknown',
+            Area: farm.farm_area || 1,
+            Annual_Rainfall: 800,
+            Fertilizer: 50,
+            Pesticide: 2
+        };
+
+        const response = await djangoClient.post('/api/suggestions/', payload);
         return response.data;
     } catch (err) {
         console.error('[AI ENGINE] Suggestions error:', err.message);
+        if (err.response?.data) console.error(JSON.stringify(err.response.data, null, 2));
         throw new Error('Django suggestions service unavailable');
     }
 };

@@ -225,7 +225,7 @@ router.post('/compare', auth, requireProfile, [
         }
 
         const farm = farmResult.rows[0];
-        const { crop_keys, land_size } = req.body;
+        const { crop_keys, land_size, season } = req.body;
 
         // 3. Calculate profit for each crop
         const results = [];
@@ -264,7 +264,7 @@ router.post('/compare', auth, requireProfile, [
              VALUES ($1, $2, $3, $4, $5)`,
             [
                 farm.id,
-                farm.current_season,
+                season || farm.current_season,
                 land_size,
                 JSON.stringify(results),
                 results[0].crop_name
@@ -276,7 +276,7 @@ router.post('/compare', auth, requireProfile, [
             farm_info: {
                 soil_type:      farm.soil_type,
                 land_size_used: land_size,
-                season:         farm.current_season,
+                season:         season || farm.current_season,
             },
             winner: {
                 crop:       results[0].crop_name,

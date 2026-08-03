@@ -5,12 +5,14 @@ import StatCard from '../components/StatCard'
 import WeatherWidget from '../components/WeatherWidget'
 import AlertCard from '../components/AlertCard'
 import SuggestionCard from '../components/SuggestionCard'
+import AnalysisCard from '../components/AnalysisCard'
 import { useSocket } from '../context/SocketContext'
 import { useAuth } from '../context/AuthContext'
 import { getMyFarm } from '../api/farmApi'
 import { getWeatherForecast } from '../api/weatherApi'
 import { getAlerts } from '../api/alertApi'
 import { getSuggestions } from '../api/suggestionApi'
+import { runAIAnalysis, getLatestAnalysis } from '../api/analysisApi'
 import {
   MOCK_FARM, MOCK_WEATHER, MOCK_ALERTS, MOCK_SUGGESTIONS
 } from '../mock/mockData'
@@ -22,7 +24,9 @@ export default function Dashboard() {
   const [forecast, setForecast]     = useState([])
   const [alerts, setAlerts]         = useState([])
   const [suggestions, setSuggestions] = useState([])
+  const [latestAnalysis, setLatestAnalysis] = useState(null)
   const [loading, setLoading]       = useState(true)
+  const [runningAnalysis, setRunningAnalysis] = useState(false)
 
   useEffect(() => {
     if (isDemo) {
@@ -44,16 +48,33 @@ export default function Dashboard() {
           getWeatherForecast(id),
           getAlerts(id),
           getSuggestions(id),
+          getLatestAnalysis(),
         ])
       })
-      .then(([w, a, s]) => {
+      .then(([w, a, s, an]) => {
         setForecast(w.data.forecast || [])
         setAlerts(a.data.alerts || [])
         setSuggestions(s.data.suggestions || [])
+        if (an.data.has_analysis) {
+          setLatestAnalysis(an.data.analysis)
+        }
       })
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [isDemo])
+
+  const handleRunAnalysis = async () => {
+    try {
+      setRunningAnalysis(true)
+      await runAIAnalysis()
+      window.location.reload()
+    } catch (err) {
+      console.error(err)
+      alert(err.response?.data?.error || 'Failed to run AI analysis')
+    } finally {
+      setRunningAnalysis(false)
+    }
+  }
 
   const unreadAlerts = alerts.filter((a) => !a.is_read).length
 
@@ -92,15 +113,26 @@ export default function Dashboard() {
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
           {/* Header */}
-          <div className="mb-6">
-            <h1 className="font-heading font-bold text-2xl text-gray-900">
-              {loading ? '…' : `${farm?.name || 'Your Farm'} Dashboard`}
-            </h1>
-            <p className="text-sm text-gray-500 font-body mt-0.5">
-              {farm
-                ? `${farm.village}, ${farm.district}, ${farm.state}`
-                : 'Loading farm info…'}
-            </p>
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <h1 className="font-heading font-bold text-2xl text-gray-900">
+                {loading ? '…' : `${farm?.name || 'Your Farm'} Dashboard`}
+              </h1>
+              <p className="text-sm text-gray-500 font-body mt-0.5">
+                {farm
+                  ? `${farm.village}, ${farm.district}, ${farm.state}`
+                  : 'Loading farm info…'}
+              </p>
+            </div>
+            {!isDemo && !loading && (
+              <button 
+                onClick={handleRunAnalysis}
+                disabled={runningAnalysis}
+                className="btn-primary flex items-center gap-2"
+              >
+                {runningAnalysis ? 'Running...' : '🤖 Run AI Analysis'}
+              </button>
+            )}
           </div>
 
           {/* Stat cards */}
@@ -118,6 +150,13 @@ export default function Dashboard() {
               : <WeatherWidget forecast={forecast} />
             }
           </div>
+
+          {/* AI Analysis */}
+          {!loading && latestAnalysis && (
+            <div className="mb-6">
+              <AnalysisCard analysis={latestAnalysis} />
+            </div>
+          )}
 
           {/* Bottom row */}
           <div className="grid lg:grid-cols-2 gap-6">

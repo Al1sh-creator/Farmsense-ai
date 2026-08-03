@@ -53,12 +53,10 @@ Knowledge Base (RAG) References:
 Using the context provided above, generate a detailed recommendation. 
 You must output a raw JSON object (without Markdown formatting or code blocks) with the following keys exactly:
 {{
-  "crop_recommendation": "string: Your recommendation for the crop based on ML and context.",
-  "fertilizer_recommendation": "string: Your recommendation for fertilizer.",
-  "irrigation_advice": "string: Advice on how and when to irrigate.",
-  "crop_rotation": "string: Suggestions for crop rotation.",
-  "disease_prevention": "string: Tips for disease prevention based on crop and weather.",
-  "explanation": "string: Explain the reasoning behind your overall recommendations.",
+  "answer": "string: A friendly, conversational, and direct answer to the user's query. You MUST explicitly address their specific question using the context and ML predictions. Do not just output a generic template.",
+  "crop_recommendation": "string: Optional. Your recommendation for the crop based on ML and context (if relevant).",
+  "fertilizer_recommendation": "string: Optional. Your recommendation for fertilizer (if relevant).",
+  "irrigation_advice": "string: Optional. Advice on how and when to irrigate (if relevant).",
   "confidence": "number: Estimated confidence level between 0 and 100 based on data quality.",
   "sources_used": ["list of strings: Sources from the RAG context that you used"]
 }}
