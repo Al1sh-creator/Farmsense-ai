@@ -251,7 +251,7 @@ PUT    /api/notifications/prefs   Update notification preferences
 
 #### Weather
 ```
-GET    /api/weather/forecast/         Fetch & return 7-day forecast (no DB write)
+GET    /api/weather/forecast/         Fetch & return 16-Day Forecast (no DB write)
 POST   /api/weather/check-alerts/     Analyze weather → return alert list (no DB write)
 ```
 

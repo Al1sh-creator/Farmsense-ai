@@ -105,7 +105,7 @@ Backend automatically (on profile save):
     │
     ▼
 Dashboard — farmer can now use all features:
-    ├── 🌦️ Weather widget (7-day forecast)
+    ├── 🌦️ Weather widget (16-Day Forecast)
     ├── ⚠️ Active weather alerts
     ├── 🌾 Crop recommendation
     ├── 🧪 Fertilizer plan
@@ -469,7 +469,7 @@ PUT    /api/fields/update/:id
 DELETE /api/fields/delete/:id
 
 ── WEATHER ──
-GET    /api/weather/forecast           farm lat/lon → 7-day forecast
+GET    /api/weather/forecast           farm lat/lon → 16-Day Forecast
 
 ── ALERTS ──
 GET    /api/alerts                     active alerts for farm
@@ -545,7 +545,7 @@ React loads /dashboard
   → GET /api/suggestions       → today's suggestions
 
   React renders:
-  ├── Weather widget (7-day forecast)
+  ├── Weather widget (16-Day Forecast)
   ├── Alert cards (red/orange/green)
   ├── Crop recommendation card
   ├── Fertilizer tip card

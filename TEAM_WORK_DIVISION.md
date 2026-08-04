@@ -99,7 +99,7 @@ ai-engine/
 #### Week 2
 - [ ] Download all 5 datasets from Kaggle
 - [ ] Train all 5 ML models → save `.pkl` files
-- [ ] Write `weather/services/open_meteo.py` — fetch 7-day forecast
+- [ ] Write `weather/services/open_meteo.py` — fetch 16-Day Forecast
 - [ ] Write `weather/services/alert_engine.py` — 8 alert rules
 - [ ] Write `weather/views.py` + `weather/urls.py`
 
@@ -125,7 +125,7 @@ ai-engine/
 All protected by: X-Internal-Key: farmsense_internal_secret_2024
 
 GET  /api/weather/forecast/?lat=23.2&lon=72.6
-     Returns: 7-day forecast JSON
+     Returns: 16-Day Forecast JSON
 
 POST /api/weather/check-alerts/
      Body: { farm_id, lat, lon, soil_type, current_crop, crop_stage }
@@ -367,7 +367,7 @@ client/
     │   ├── Navbar.jsx
     │   ├── Sidebar.jsx
     │   ├── AlertCard.jsx         ← single alert display
-    │   ├── WeatherWidget.jsx     ← 7-day forecast strip
+    │   ├── WeatherWidget.jsx     ← 16-Day Forecast strip
     │   ├── SuggestionCard.jsx    ← AI tip card
     │   ├── CropCompareTable.jsx  ← comparison table
     │   ├── FieldCard.jsx         ← farm field status card
