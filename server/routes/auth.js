@@ -5,73 +5,26 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const nodemailer = require('nodemailer');
+const dns = require('dns').promises;
 const { body, validationResult } = require('express-validator');
 const pool = require('../config/db');
-const { auth, requireEmailVerified } = require('../middleware/auth');
+const { auth } = require('../middleware/auth');
 const { AppError } = require('../middleware/errorHandler');
+const {
+    sendVerificationEmail,
+    sendPasswordResetEmail,
+    sendWelcomeEmail,
+} = require('../services/emailService');
 
-// ── Email Transporter Setup ───────────────────
-const transporter = nodemailer.createTransport({
-    host: process.env.EMAIL_HOST,
-    port: process.env.EMAIL_PORT,
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
+// ── Helper: Validate email domain has MX records ──
+const validateEmailDomain = async (email) => {
+    const domain = email.split('@')[1];
+    try {
+        const records = await dns.resolveMx(domain);
+        return records && records.length > 0;
+    } catch {
+        return false;
     }
-});
-
-// ── Helper: Send Verification Email ──────────
-const sendVerificationEmail = async (email, name, token) => {
-    const verifyUrl = `http://localhost:5000/api/auth/verify-email?token=${token}`;
-
-    await transporter.sendMail({
-        from: '"FarmSense AI" <noreply@farmsense.com>',
-        to: email,
-        subject: 'Verify your FarmSense AI account',
-        html: `
-            <div style="font-family: Arial, sans-serif;
-                        max-width: 600px; margin: 0 auto;
-                        padding: 20px;">
-
-                <h2 style="color: #2D6A4F;">
-                    Welcome to FarmSense AI, ${name}!
-                </h2>
-
-                <p style="color: #333;">
-                    Thank you for registering.
-                    Please verify your email address to activate your account.
-                </p>
-
-                <a href="${verifyUrl}"
-                   style="display: inline-block;
-                          background-color: #2D6A4F;
-                          color: white;
-                          padding: 12px 30px;
-                          text-decoration: none;
-                          border-radius: 6px;
-                          margin: 20px 0;">
-                    Verify Email Address
-                </a>
-
-                <p style="color: #666; font-size: 14px;">
-                    This link expires in 24 hours.
-                </p>
-
-                <p style="color: #666; font-size: 14px;">
-                    If you did not create this account,
-                    please ignore this email.
-                </p>
-
-                <hr style="border: none; border-top: 1px solid #eee;
-                           margin: 20px 0;" />
-
-                <p style="color: #999; font-size: 12px;">
-                    FarmSense AI — Smart Farming Assistant
-                </p>
-            </div>
-        `
-    });
 };
 
 // ── Helper: Get Device Info ───────────────────
@@ -144,9 +97,17 @@ router.post('/register', [
 
         const { name, email, phone, password } = req.body;
 
-        // 2. Check email or phone already exists
-        const existing = await pool.query(
-            `SELECT id FROM users
+        // 2a. Validate email domain has real MX records
+        const domainValid = await validateEmailDomain(email);
+        if (!domainValid) {
+            return res.status(400).json({
+                success: false,
+                error: `The email address "${email}" does not appear to be valid. Please enter a real email address.`
+            });
+        }
+
+        // 2b. Check email or phone already exists
+        const existing = await pool.query(            `SELECT id FROM users
              WHERE email = $1 OR phone = $2`,
             [email, phone]
         );
@@ -185,12 +146,20 @@ router.post('/register', [
             [user.id]
         );
 
-        // 7. Send verification email
+        // 7. Send verification email — block if it fails
         try {
             await sendVerificationEmail(email, name, verifyToken);
         } catch (emailErr) {
-            console.error('[WARNING] Email send failed:', emailErr.message);
-            // Don't block registration if email fails
+            console.error('[EMAIL] Verification send failed:', emailErr.message);
+
+            // Roll back the user insert so they can retry with correct email
+            await pool.query('DELETE FROM users WHERE id = $1', [user.id]);
+
+            return res.status(400).json({
+                success: false,
+                error: 'Could not send verification email. Please check your email address and try again.',
+                detail: emailErr.message
+            });
         }
 
         // 8. Generate JWT
@@ -443,6 +412,11 @@ router.get('/verify-email', async (req, res, next) => {
             [user.id]
         );
 
+        // Send welcome email (non-blocking)
+        pool.query('SELECT name, email FROM users WHERE id = $1', [user.id])
+            .then(r => sendWelcomeEmail(r.rows[0].email, r.rows[0].name))
+            .catch(e => console.error('[EMAIL] Welcome email failed:', e.message));
+
         // Redirect to frontend login page with success message
         res.redirect('http://localhost:5173/login?verified=true');
 
@@ -484,12 +458,20 @@ router.post('/resend-verification', auth, async (req, res, next) => {
             [verifyToken, verifyExpires, req.user.id]
         );
 
-        await sendVerificationEmail(user.email, user.name, verifyToken);
-
-        res.json({
-            success: true,
-            message: 'Verification email sent successfully'
-        });
+        try {
+            await sendVerificationEmail(user.email, user.name, verifyToken);
+            res.json({
+                success: true,
+                message: 'Verification email sent successfully'
+            });
+        } catch (emailErr) {
+            console.error('[WARNING] Email send failed:', emailErr.message);
+            res.json({
+                success: true,
+                message: 'Token refreshed but email delivery failed. Check EMAIL_HOST config.',
+                warning: emailErr.message
+            });
+        }
 
     } catch (err) {
         next(err);
@@ -547,6 +529,113 @@ router.get('/login-history', auth, async (req, res, next) => {
         res.json({
             success: true,
             login_history: result.rows
+        });
+
+    } catch (err) {
+        next(err);
+    }
+});
+
+// ==============================================
+// POST /api/auth/forgot-password
+// ==============================================
+router.post('/forgot-password', [
+    body('email').isEmail().withMessage('Valid email is required').normalizeEmail(),
+], async (req, res, next) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ success: false, errors: errors.array() });
+        }
+
+        const { email } = req.body;
+
+        const result = await pool.query(
+            'SELECT id, name FROM users WHERE email = $1',
+            [email]
+        );
+
+        // Always respond success — don't reveal if email exists
+        if (result.rows.length === 0) {
+            return res.json({
+                success: true,
+                message: 'If that email exists, a reset link has been sent.'
+            });
+        }
+
+        const user = result.rows[0];
+
+        const resetToken = crypto.randomBytes(32).toString('hex');
+        const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+        await pool.query(
+            `UPDATE users
+             SET password_reset_token = $1,
+                 password_reset_expires = $2
+             WHERE id = $3`,
+            [resetToken, resetExpires, user.id]
+        );
+
+        try {
+            await sendPasswordResetEmail(email, user.name, resetToken);
+        } catch (emailErr) {
+            console.error('[EMAIL] Password reset email failed:', emailErr.message);
+        }
+
+        res.json({
+            success: true,
+            message: 'If that email exists, a reset link has been sent.'
+        });
+
+    } catch (err) {
+        next(err);
+    }
+});
+
+// ==============================================
+// POST /api/auth/reset-password
+// ==============================================
+router.post('/reset-password', [
+    body('token').notEmpty().withMessage('Reset token is required'),
+    body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+], async (req, res, next) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ success: false, errors: errors.array() });
+        }
+
+        const { token, password } = req.body;
+
+        const result = await pool.query(
+            `SELECT id FROM users
+             WHERE password_reset_token = $1
+               AND password_reset_expires > NOW()`,
+            [token]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid or expired reset token.'
+            });
+        }
+
+        const salt = await bcrypt.genSalt(12);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        await pool.query(
+            `UPDATE users
+             SET password = $1,
+                 password_reset_token = NULL,
+                 password_reset_expires = NULL
+             WHERE id = $2`,
+            [hashedPassword, result.rows[0].id]
+        );
+
+        res.json({
+            success: true,
+            message: 'Password reset successfully. You can now log in.'
         });
 
     } catch (err) {

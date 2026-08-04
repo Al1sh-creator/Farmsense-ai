@@ -24,7 +24,15 @@ export function AuthProvider({ children }) {
 
     // Real login
     getMe()
-      .then((res) => setUser(res.data))
+      .then((res) => {
+        // getMe returns { user: {...}, farm: {...} }
+        // merge profile_completed from farm if present
+        const userData = res.data.user || res.data
+        if (res.data.farm) {
+          userData.profile_completed = true
+        }
+        setUser(userData)
+      })
       .catch(() => localStorage.removeItem('token'))
       .finally(() => setLoading(false))
   }, [])
@@ -42,7 +50,6 @@ export function AuthProvider({ children }) {
     setUser(res.data.user)
     return res.data
   }, [])
-
   // Demo login — sets a fake token, no API call
   const demoLogin = useCallback(() => {
     localStorage.setItem('token', DEMO_TOKEN)

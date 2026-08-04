@@ -23,7 +23,7 @@ export default function Register() {
       await register({ name: form.name, email: form.email, phone: form.phone, password: form.password })
       navigate('/onboarding')
     } catch (err) {
-      setError(err.response?.data?.message || 'Registration failed. Try again.')
+      setError(err.response?.data?.error || err.response?.data?.message || 'Registration failed. Try again.')
     } finally {
       setLoading(false)
     }

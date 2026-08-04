@@ -226,7 +226,7 @@ export default function Landing() {
             {
               icon: '🌦️',
               title: "Weather alerts before it's too late",
-              desc: "We check Open-Meteo forecasts every day at 7am for your farm location. If heavy rain, frost, or heat stress is coming, you get an SMS and in-app notification — 2 days early so you can actually do something about it.",
+              desc: "We check Open-Meteo forecasts every day at 7am for your farm location. If heavy rain, frost, or heat stress is coming, you get an notification on your dashboard — 2 days early so you can actually do something about it.",
               tag: '8 alert types',
             },
             {

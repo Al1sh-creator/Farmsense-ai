@@ -33,7 +33,9 @@ python-dateutil==2.9.0.post0
 # ── AI / RAG Module ──────────────────────────────
 langchain
 langchain-community
-langchain-ollama
+langchain-groq
 langchain-chroma
+langchain-text-splitters
 chromadb
 pypdf
+sentence-transformers

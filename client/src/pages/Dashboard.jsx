@@ -18,7 +18,7 @@ import {
 } from '../mock/mockData'
 
 export default function Dashboard() {
-  const { isDemo }               = useAuth()
+  const { user, isDemo } = useAuth()
   const { liveAlerts, dismissAlert } = useSocket() || {}
   const [farm, setFarm]             = useState(null)
   const [forecast, setForecast]     = useState([])
@@ -27,6 +27,7 @@ export default function Dashboard() {
   const [latestAnalysis, setLatestAnalysis] = useState(null)
   const [loading, setLoading]       = useState(true)
   const [runningAnalysis, setRunningAnalysis] = useState(false)
+  const [analysisError, setAnalysisError]     = useState('')
 
   useEffect(() => {
     if (isDemo) {
@@ -45,38 +46,38 @@ export default function Dashboard() {
         setFarm(res.data.farm)
         const id = res.data.farm?.id
         return Promise.all([
-          getWeatherForecast(id),
+          getWeatherForecast(),
           getAlerts(id),
           getSuggestions(id),
           getLatestAnalysis(),
         ])
       })
       .then(([w, a, s, an]) => {
-        setForecast(w.data.forecast || [])
+        setForecast(w.data.weather?.daily || [])
         setAlerts(a.data.alerts || [])
         setSuggestions(s.data.suggestions || [])
-        if (an.data.has_analysis) {
-          setLatestAnalysis(an.data.analysis)
-        }
+        if (an.data.has_analysis) setLatestAnalysis(an.data.analysis)
       })
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [isDemo])
 
   const handleRunAnalysis = async () => {
+    setAnalysisError('')
     try {
       setRunningAnalysis(true)
       await runAIAnalysis()
       window.location.reload()
     } catch (err) {
-      console.error(err)
-      alert(err.response?.data?.error || 'Failed to run AI analysis')
+      const msg = err.response?.data?.error || 'Failed to run AI analysis'
+      setAnalysisError(msg)
     } finally {
       setRunningAnalysis(false)
     }
   }
 
-  const unreadAlerts = alerts.filter((a) => !a.is_read).length
+  const unreadAlerts   = alerts.filter((a) => !a.is_read).length
+  const profileComplete = farm && (farm.profile_completed ?? user?.profile_completed)
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -92,6 +93,47 @@ export default function Dashboard() {
               <strong>Demo Mode</strong> — showing sample data for Ramesh Patel&apos;s farm in Anand, Gujarat.
               Connect the Node.js backend to use real data.
             </p>
+          </div>
+        )}
+
+        {/* Analysis error banner */}
+        {analysisError && (
+          <div className="bg-red-50 border-b border-red-200 px-6 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span>⚠️</span>
+              <p className="text-sm text-red-700 font-body">
+                {analysisError}
+                {analysisError.toLowerCase().includes('soil') && (
+                  <a href="/farm-profile" className="ml-2 underline font-semibold">
+                    Update Soil Profile →
+                  </a>
+                )}
+              </p>
+            </div>
+            <button onClick={() => setAnalysisError('')} className="text-red-400 hover:text-red-600 text-lg ml-4">×</button>
+          </div>
+        )}
+
+        {/* ── Profile incomplete banner ── */}
+        {!isDemo && !loading && !profileComplete && (
+          <div className="bg-gradient-to-r from-primary/10 to-secondary/10 border-b border-primary/20 px-4 py-4">
+            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl">🌾</span>
+                <div>
+                  <p className="font-semibold text-gray-900 font-body">Complete your farm setup</p>
+                  <p className="text-sm text-gray-600 font-body">
+                    Set up your farm profile to unlock AI analysis, weather alerts, crop suggestions and more.
+                  </p>
+                </div>
+              </div>
+              <a
+                href="/onboarding"
+                className="btn-primary text-sm whitespace-nowrap shrink-0"
+              >
+                Setup Farm Profile →
+              </a>
+            </div>
           </div>
         )}
 
@@ -116,16 +158,16 @@ export default function Dashboard() {
           <div className="mb-6 flex items-center justify-between">
             <div>
               <h1 className="font-heading font-bold text-2xl text-gray-900">
-                {loading ? '…' : `${farm?.name || 'Your Farm'} Dashboard`}
+                {loading ? '…' : `${farm?.farm_name || 'Your Farm'} Dashboard`}
               </h1>
               <p className="text-sm text-gray-500 font-body mt-0.5">
                 {farm
-                  ? `${farm.village}, ${farm.district}, ${farm.state}`
+                  ? [farm.village, farm.district, farm.state].filter(Boolean).join(', ')
                   : 'Loading farm info…'}
               </p>
             </div>
-            {!isDemo && !loading && (
-              <button 
+            {!isDemo && !loading && profileComplete && (
+              <button
                 onClick={handleRunAnalysis}
                 disabled={runningAnalysis}
                 className="btn-primary flex items-center gap-2"
@@ -135,13 +177,23 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* Stat cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <StatCard title="Active Alerts"   value={loading ? '—' : unreadAlerts}                         icon="🔔" color="danger"    />
-            <StatCard title="AI Suggestions"  value={loading ? '—' : suggestions.length}                   icon="💡" color="secondary" />
-            <StatCard title="Total Area"      value={loading ? '—' : `${farm?.total_area_acres || 0}ac`}   icon="🚜" color="primary"   />
-            <StatCard title="Fields"          value={loading ? '—' : (farm?.fields?.length || 0)}          icon="🌱" color="info"      />
-          </div>
+          {/* If profile not complete — show placeholder cards */}
+          {!isDemo && !loading && !profileComplete ? (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 opacity-40 pointer-events-none select-none">
+              <StatCard title="Active Alerts"  value="—" icon="🔔" color="danger"    />
+              <StatCard title="AI Suggestions" value="—" icon="💡" color="secondary" />
+              <StatCard title="Total Area"     value="—" icon="🚜" color="primary"   />
+              <StatCard title="Fields"         value="—" icon="🌱" color="info"      />
+            </div>
+          ) : (
+            /* Stat cards */
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              <StatCard title="Active Alerts"   value={loading ? '—' : unreadAlerts}                              icon="🔔" color="danger"    />
+              <StatCard title="AI Suggestions"  value={loading ? '—' : suggestions.length}                        icon="💡" color="secondary" />
+              <StatCard title="Total Area"      value={loading ? '—' : `${farm?.farm_area || 0}ac`}               icon="🚜" color="primary"   />
+              <StatCard title="Fields"          value={loading ? '—' : (farm?.stats?.total_fields || 0)}          icon="🌱" color="info"      />
+            </div>
+          )}
 
           {/* Weather */}
           <div className="mb-6">

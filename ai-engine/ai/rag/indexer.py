@@ -25,7 +25,7 @@ from pathlib import Path
 
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_ollama import OllamaEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 
 logger = logging.getLogger(__name__)
@@ -34,7 +34,11 @@ class PDFIndexer:
     def __init__(self, knowledge_base_dir: str, persist_directory: str):
         self.knowledge_base_dir = knowledge_base_dir
         self.persist_directory = persist_directory
-        self.embeddings = OllamaEmbeddings(model="nomic-embed-text")
+        # Uses sentence-transformers locally — no server needed
+        self.embeddings = HuggingFaceEmbeddings(
+            model_name="all-MiniLM-L6-v2",
+            model_kwargs={"device": "cpu"}
+        )
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,
             chunk_overlap=200,

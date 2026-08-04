@@ -3,21 +3,42 @@ import Sidebar from '../components/Sidebar'
 import Navbar from '../components/Navbar'
 import FieldCard from '../components/FieldCard'
 import { useAuth } from '../context/AuthContext'
-import { getMyFarm, addField, updateField, deleteField, getFields } from '../api/farmApi'
+import { getMyFarm, addField, updateField, deleteField, getFields, updateSoilProfile } from '../api/farmApi'
 import { MOCK_FARM } from '../mock/mockData'
 
 const SOIL_TYPES  = ['Black', 'Red', 'Alluvial', 'Laterite', 'Sandy', 'Loamy', 'Clayey']
 const CROP_STAGES = ['sowing', 'growing', 'flowering', 'harvest']
 const SEASONS     = ['kharif', 'rabi', 'zaid']
 
-function FieldModal({ field, onClose, onSave, farmId, isDemo }) {
-  const [form, setForm] = useState(
-    field || { name: '', crop_name: '', crop_stage: 'growing', area_acres: '', soil_type: 'Black', season: 'kharif' }
+function FieldModal({ field, onClose, onSave, farmId, isDemo, maxArea }) {
+  const [form, setForm]     = useState(
+    field || { field_name: '', current_crop: '', field_size: '', season: 'Kharif', sow_date: '' }
   )
   const [saving, setSaving] = useState(false)
+  const [error, setError]   = useState('')
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }))
 
+  // Sowing date bounds
+  const today = new Date().toISOString().split('T')[0]
+  const minSowDate = (() => {
+    const d = new Date()
+    d.setMonth(d.getMonth() - 5)
+    return d.toISOString().split('T')[0]
+  })()
+
+  const COMMON_CROPS = [
+    'Cotton', 'Wheat', 'Rice', 'Maize', 'Sugarcane', 'Soybean',
+    'Groundnut', 'Bajra', 'Jowar', 'Chickpea', 'Mustard', 'Other',
+  ]
+
   const handleSave = async () => {
+    if (!form.field_name?.trim()) { setError('Field name is required'); return }
+    if (!form.field_size || parseFloat(form.field_size) <= 0) { setError('Enter a valid field area'); return }
+    if (!field?.id && parseFloat(form.field_size) > maxArea) {
+      setError(`Area cannot exceed remaining farm area (${maxArea.toFixed(1)} acres)`)
+      return
+    }
+    setError('')
     setSaving(true)
     try {
       if (isDemo) {
@@ -27,6 +48,8 @@ function FieldModal({ field, onClose, onSave, farmId, isDemo }) {
         else await addField(farmId, form)
       }
       onSave()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to save field.')
     } finally {
       setSaving(false)
     }
@@ -39,40 +62,54 @@ function FieldModal({ field, onClose, onSave, farmId, isDemo }) {
           {field?.id ? 'Edit Field' : 'Add New Field'}
           {isDemo && <span className="ml-2 text-xs text-amber-600 font-body">(Demo)</span>}
         </h3>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-3 py-2 mb-4 font-body">
+            {error}
+          </div>
+        )}
+
+        {!field?.id && maxArea > 0 && (
+          <div className="bg-green-50 border border-green-200 text-green-800 text-xs rounded-xl px-3 py-2 mb-4 font-body">
+            Available area: <strong>{maxArea.toFixed(1)} acres</strong>
+          </div>
+        )}
+
         <div className="space-y-3">
           <div>
             <label className="label">Field Name</label>
-            <input className="input-field" value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="North Field" />
+            <input className="input-field" value={form.field_name || ''} onChange={(e) => set('field_name', e.target.value)} placeholder="North Field" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="label">Crop</label>
-              <input className="input-field" value={form.crop_name} onChange={(e) => set('crop_name', e.target.value)} placeholder="Kapas" />
+              <label className="label">Current Crop <span className="text-gray-400 text-xs">(optional)</span></label>
+              <select className="input-field" value={form.current_crop || ''} onChange={(e) => set('current_crop', e.target.value)}>
+                <option value="">-- No crop yet --</option>
+                {COMMON_CROPS.map((c) => <option key={c}>{c}</option>)}
+              </select>
             </div>
             <div>
-              <label className="label">Stage</label>
-              <select className="input-field" value={form.crop_stage} onChange={(e) => set('crop_stage', e.target.value)}>
-                {CROP_STAGES.map((s) => <option key={s}>{s}</option>)}
+              <label className="label">Season</label>
+              <select className="input-field" value={form.season || 'Kharif'} onChange={(e) => set('season', e.target.value)}>
+                {['Kharif', 'Rabi', 'Zaid'].map((s) => <option key={s}>{s}</option>)}
               </select>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label">Area (acres)</label>
-              <input className="input-field" type="number" value={form.area_acres} onChange={(e) => set('area_acres', e.target.value)} placeholder="2.5" />
+              <input className="input-field" type="number" min="0.1" step="0.1"
+                max={!field?.id ? maxArea : undefined}
+                value={form.field_size || ''} onChange={(e) => set('field_size', e.target.value)} placeholder="2.5" />
             </div>
             <div>
-              <label className="label">Season</label>
-              <select className="input-field" value={form.season} onChange={(e) => set('season', e.target.value)}>
-                {SEASONS.map((s) => <option key={s}>{s}</option>)}
-              </select>
+              <label className="label">Sowing Date <span className="text-gray-400 text-xs">(optional)</span></label>
+              <input className="input-field" type="date"
+                min={minSowDate}
+                max={today}
+                value={form.sow_date || ''}
+                onChange={(e) => set('sow_date', e.target.value)} />
             </div>
-          </div>
-          <div>
-            <label className="label">Soil Type</label>
-            <select className="input-field" value={form.soil_type} onChange={(e) => set('soil_type', e.target.value)}>
-              {SOIL_TYPES.map((s) => <option key={s}>{s}</option>)}
-            </select>
           </div>
         </div>
         <div className="flex gap-3 mt-6">
@@ -82,6 +119,148 @@ function FieldModal({ field, onClose, onSave, farmId, isDemo }) {
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+function SoilProfileSection({ farm, onUpdated, isDemo }) {
+  const hasSoil = farm?.npk_nitrogen && farm?.npk_phosphorus && farm?.npk_potassium && farm?.ph_level
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving]   = useState(false)
+  const [error, setError]     = useState('')
+  const [form, setForm]       = useState({
+    npk_nitrogen:   farm?.npk_nitrogen   || '',
+    npk_phosphorus: farm?.npk_phosphorus || '',
+    npk_potassium:  farm?.npk_potassium  || '',
+    ph_level:       farm?.ph_level       || '',
+  })
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
+
+  const handleSave = async () => {
+    if (!form.npk_nitrogen || !form.npk_phosphorus || !form.npk_potassium || !form.ph_level) {
+      setError('All four values are required.')
+      return
+    }
+    setSaving(true)
+    setError('')
+    try {
+      await updateSoilProfile({
+        npk_nitrogen:   parseFloat(form.npk_nitrogen),
+        npk_phosphorus: parseFloat(form.npk_phosphorus),
+        npk_potassium:  parseFloat(form.npk_potassium),
+        ph_level:       parseFloat(form.ph_level),
+      })
+      setEditing(false)
+      onUpdated()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to save soil profile.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className={`card mb-6 ${!hasSoil ? 'border-2 border-amber-300' : ''}`}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <span className="text-lg">🧪</span>
+          <h3 className="font-heading font-semibold text-gray-800">Soil Test Report (NPK + pH)</h3>
+          {!hasSoil && (
+            <span className="text-[10px] bg-amber-100 text-amber-700 font-semibold px-2 py-0.5 rounded-full">
+              Required for AI
+            </span>
+          )}
+        </div>
+        {!isDemo && (
+          <button
+            onClick={() => { setEditing(e => !e); setError('') }}
+            className="text-xs text-primary hover:underline font-medium"
+          >
+            {editing ? 'Cancel' : hasSoil ? 'Edit' : 'Add Values'}
+          </button>
+        )}
+      </div>
+
+      {/* Incomplete warning */}
+      {!hasSoil && !editing && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-3">
+          <span className="text-xl shrink-0">⚠️</span>
+          <div>
+            <p className="text-sm font-semibold text-amber-800">Soil test report not entered</p>
+            <p className="text-xs text-amber-700 mt-0.5 font-body">
+              Nitrogen (N), Phosphorus (P), Potassium (K) and pH values are required to run AI crop recommendations and analysis.
+              Get these from your Soil Health Card (available free from your local Krishi Vigyan Kendra).
+            </p>
+            <button
+              onClick={() => setEditing(true)}
+              className="mt-2 text-xs bg-amber-600 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-amber-700 transition-colors"
+            >
+              Enter Soil Test Values →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Values display */}
+      {hasSoil && !editing && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: 'Nitrogen (N)', value: farm.npk_nitrogen, unit: 'kg/ha', color: 'text-green-700', bg: 'bg-green-50' },
+            { label: 'Phosphorus (P)', value: farm.npk_phosphorus, unit: 'kg/ha', color: 'text-blue-700', bg: 'bg-blue-50' },
+            { label: 'Potassium (K)', value: farm.npk_potassium, unit: 'kg/ha', color: 'text-purple-700', bg: 'bg-purple-50' },
+            { label: 'pH Level', value: farm.ph_level, unit: '', color: 'text-orange-700', bg: 'bg-orange-50' },
+          ].map(({ label, value, unit, color, bg }) => (
+            <div key={label} className={`${bg} rounded-xl px-3 py-2.5 text-center`}>
+              <p className="text-[10px] text-gray-500 font-body">{label}</p>
+              <p className={`text-xl font-bold mt-0.5 ${color}`}>{value}</p>
+              {unit && <p className="text-[10px] text-gray-400">{unit}</p>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Edit form */}
+      {editing && (
+        <div className="mt-2">
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2 mb-3">
+              {error}
+            </div>
+          )}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { key: 'npk_nitrogen',   label: 'Nitrogen (N)',    placeholder: '0–140', min: 0, max: 140 },
+              { key: 'npk_phosphorus', label: 'Phosphorus (P)',  placeholder: '0–145', min: 0, max: 145 },
+              { key: 'npk_potassium',  label: 'Potassium (K)',   placeholder: '0–205', min: 0, max: 205 },
+              { key: 'ph_level',       label: 'pH Level',        placeholder: '3.5–9.9', min: 3.5, max: 9.9 },
+            ].map(({ key, label, placeholder, min, max }) => (
+              <div key={key}>
+                <label className="label text-xs">{label}</label>
+                <input
+                  className="input-field"
+                  type="number"
+                  step="0.1"
+                  min={min}
+                  max={max}
+                  value={form[key]}
+                  onChange={e => set(key, e.target.value)}
+                  placeholder={placeholder}
+                />
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-gray-400 font-body mt-2">
+            Values from your Soil Health Card. N, P, K in kg/ha.
+          </p>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="btn-primary text-sm mt-3"
+          >
+            {saving ? 'Saving…' : 'Save Soil Profile'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -113,6 +292,12 @@ export default function FarmProfile() {
 
   useEffect(reload, [isDemo])
 
+  // Calculate used and remaining area
+  const totalArea = parseFloat(farm?.farm_area || 0)
+  const usedArea  = fields.reduce((sum, f) => sum + parseFloat(f.field_size || 0), 0)
+  const remaining = Math.max(0, totalArea - usedArea)
+  const isFull    = totalArea > 0 && usedArea >= totalArea
+
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this field?')) return
     if (!isDemo) await deleteField(id)
@@ -134,29 +319,55 @@ export default function FarmProfile() {
             <div>
               <h1 className="font-heading font-bold text-2xl text-gray-900">🚜 Farm Profile</h1>
               <p className="text-sm text-gray-500 font-body mt-1">Your farm details and fields</p>
+              {!loading && totalArea > 0 && (
+                <p className="text-xs mt-1 font-body">
+                  <span className="text-gray-500">Area used: </span>
+                  <span className={usedArea >= totalArea ? 'text-red-600 font-semibold' : 'text-green-700 font-semibold'}>
+                    {usedArea.toFixed(1)} / {totalArea} acres
+                  </span>
+                  {remaining > 0 && (
+                    <span className="text-gray-400"> ({remaining.toFixed(1)} remaining)</span>
+                  )}
+                </p>
+              )}
             </div>
-            <button onClick={() => setModal('add')} id="btn-add-field" className="btn-primary text-sm">+ Add Field</button>
+            {isFull ? (
+              <div className="text-right">
+                <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl px-3 py-2 font-body">
+                  Farm area full.<br/>Delete a field to add new.
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => setModal('add')} id="btn-add-field" className="btn-primary text-sm">
+                + Add Field
+              </button>
+            )}
           </div>
 
           {/* Farm details */}
           {loading ? (
             <div className="card h-24 animate-pulse bg-gray-50 mb-6" />
           ) : farm && (
-            <div className="card mb-6">
-              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {[
-                  { label: 'Farm Name',  value: farm.name },
-                  { label: 'Location',   value: `${farm.village}, ${farm.district}, ${farm.state}` },
-                  { label: 'Soil Type',  value: farm.soil_type },
-                  { label: 'Total Area', value: `${farm.total_area_acres} acres` },
-                ].map(({ label, value }) => (
-                  <div key={label}>
-                    <p className="text-xs text-gray-400 font-body uppercase tracking-wide">{label}</p>
-                    <p className="text-sm font-medium text-gray-800 mt-0.5 font-body">{value}</p>
-                  </div>
-                ))}
+            <>
+              <div className="card mb-4">
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {[
+                    { label: 'Farm Name',  value: farm.farm_name || '—' },
+                    { label: 'Location',   value: [farm.village, farm.district, farm.state].filter(Boolean).join(', ') || '—' },
+                    { label: 'Soil Type',  value: farm.soil_type || '—' },
+                    { label: 'Total Area', value: farm.farm_area ? `${farm.farm_area} acres` : '—' },
+                  ].map(({ label, value }) => (
+                    <div key={label}>
+                      <p className="text-xs text-gray-400 font-body uppercase tracking-wide">{label}</p>
+                      <p className="text-sm font-medium text-gray-800 mt-0.5 font-body">{value}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+
+              {/* Soil Profile Section */}
+              <SoilProfileSection farm={farm} onUpdated={reload} isDemo={isDemo} />
+            </>
           )}
 
           <h2 className="font-heading font-semibold text-gray-800 mb-3">Fields ({loading ? '…' : fields.length})</h2>
@@ -167,15 +378,12 @@ export default function FarmProfile() {
           ) : fields.length ? (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {fields.map((f) => (
-                <div key={f.id} className="relative group">
-                  <FieldCard field={f} onEdit={() => setModal(f)} />
-                  <button
-                    onClick={() => handleDelete(f.id)}
-                    className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity text-danger text-xs hover:bg-danger/10 px-2 py-1 rounded-lg"
-                  >
-                    Delete
-                  </button>
-                </div>
+                <FieldCard
+                  key={f.id}
+                  field={f}
+                  onEdit={() => setModal(f)}
+                  onDelete={handleDelete}
+                />
               ))}
             </div>
           ) : (
@@ -192,6 +400,7 @@ export default function FarmProfile() {
           field={modal === 'add' ? null : modal}
           farmId={farm?.id}
           isDemo={isDemo}
+          maxArea={remaining}
           onClose={() => setModal(null)}
           onSave={() => { setModal(null); reload() }}
         />

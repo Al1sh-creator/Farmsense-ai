@@ -12,7 +12,11 @@ import Alerts from './pages/Alerts'
 import Suggestions from './pages/Suggestions'
 import CropComparison from './pages/CropComparison'
 import FarmProfile from './pages/FarmProfile'
+import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
 import Settings from './pages/Settings'
+import Weather from './pages/Weather'
+import GovSchemes from './pages/GovSchemes'
 
 export default function App() {
   return (
@@ -22,8 +26,10 @@ export default function App() {
           <Routes>
             {/* Public */}
             <Route path="/"          element={<Landing />} />
-            <Route path="/login"     element={<Login />} />
-            <Route path="/register"  element={<Register />} />
+            <Route path="/login"           element={<Login />} />
+            <Route path="/register"         element={<Register />} />
+            <Route path="/forgot-password"  element={<ForgotPassword />} />
+            <Route path="/reset-password"   element={<ResetPassword />} />
 
             {/* Protected */}
             <Route path="/onboarding"      element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
@@ -32,6 +38,8 @@ export default function App() {
             <Route path="/suggestions"     element={<ProtectedRoute><Suggestions /></ProtectedRoute>} />
             <Route path="/crop-comparison" element={<ProtectedRoute><CropComparison /></ProtectedRoute>} />
             <Route path="/farm-profile"    element={<ProtectedRoute><FarmProfile /></ProtectedRoute>} />
+            <Route path="/weather"         element={<ProtectedRoute><Weather /></ProtectedRoute>} />
+            <Route path="/schemes"         element={<ProtectedRoute><GovSchemes /></ProtectedRoute>} />
             <Route path="/settings"        element={<ProtectedRoute><Settings /></ProtectedRoute>} />
 
             {/* Fallback */}

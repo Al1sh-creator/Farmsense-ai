@@ -1,5 +1,7 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useSocket } from '../context/SocketContext'
+import SidebarWeather from './SidebarWeather'
 
 const LINKS = [
   { icon: '🏠', label: 'Dashboard',       to: '/dashboard'       },
@@ -7,22 +9,29 @@ const LINKS = [
   { icon: '💡', label: 'Suggestions',     to: '/suggestions'     },
   { icon: '🌾', label: 'Crop Comparison', to: '/crop-comparison' },
   { icon: '🚜', label: 'Farm Profile',    to: '/farm-profile'    },
+  { icon: '🌤️', label: 'Weather',         to: '/weather'         },
+  { icon: '🏛️', label: 'Govt Schemes',    to: '/schemes'         },
   { icon: '⚙️', label: 'Settings',        to: '/settings'        },
 ]
 
 export default function Sidebar() {
-  const { user } = useAuth()
+  const { user, isDemo } = useAuth()
+  const { liveAlerts }   = useSocket() || {}
+  const unread           = liveAlerts?.length || 0
+  const location         = useLocation()
+  const isWeatherPage    = location.pathname === '/weather'
 
   return (
-    <aside className="hidden lg:flex flex-col w-56 min-h-screen bg-white border-r border-gray-100 px-3 py-6 gap-1">
+    <aside className="hidden lg:flex flex-col w-60 min-h-screen bg-white border-r border-gray-100 py-5">
+
       {/* Logo */}
-      <div className="flex items-center gap-2 px-4 mb-6">
+      <div className="flex items-center gap-2 px-5 mb-6">
         <span className="text-2xl">🌾</span>
-        <span className="font-heading font-bold text-primary text-lg">FarmSense</span>
+        <span className="font-heading font-bold text-primary text-lg">FarmSense AI</span>
       </div>
 
       {/* Nav links */}
-      <nav className="flex flex-col gap-1">
+      <nav className="flex flex-col gap-0.5 px-3">
         {LINKS.map(({ icon, label, to }) => (
           <NavLink
             key={to}
@@ -32,17 +41,26 @@ export default function Sidebar() {
             }
           >
             <span className="text-base">{icon}</span>
-            <span>{label}</span>
+            <span className="flex-1">{label}</span>
+            {label === 'Alerts' && unread > 0 && (
+              <span className="bg-red-500 text-white text-[10px] rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                {unread}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>
 
-      {/* User info at bottom */}
-      {user && (
-        <div className="mt-auto px-4 pt-4 border-t border-gray-100">
-          <p className="text-xs text-gray-400 font-body uppercase tracking-wide">Signed in as</p>
-          <p className="text-sm font-medium text-gray-700 mt-0.5 truncate">{user.name}</p>
-          <p className="text-xs text-gray-400 truncate">{user.email}</p>
+      {/* Weather widget — hide on /weather page */}
+      {!isDemo && !isWeatherPage && user?.profile_completed && (
+        <SidebarWeather />
+      )}
+
+      {/* Demo placeholder */}
+      {isDemo && (
+        <div className="mt-auto border-t border-gray-100 px-4 pt-3 pb-4">
+          <p className="text-[10px] text-amber-600 font-body uppercase tracking-wide mb-1">🧪 Demo Mode</p>
+          <p className="text-xs text-gray-400">Showing Ramesh Patel's farm data</p>
         </div>
       )}
     </aside>

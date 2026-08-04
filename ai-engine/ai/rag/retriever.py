@@ -20,14 +20,17 @@ Responsibilities:
 import os
 import logging
 from langchain_chroma import Chroma
-from langchain_ollama import OllamaEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
 
 logger = logging.getLogger(__name__)
 
 class RAGRetriever:
     def __init__(self, persist_directory: str):
         self.persist_directory = persist_directory
-        self.embeddings = OllamaEmbeddings(model="nomic-embed-text")
+        self.embeddings = HuggingFaceEmbeddings(
+            model_name="all-MiniLM-L6-v2",
+            model_kwargs={"device": "cpu"}
+        )
         self.vector_store = None
         self._init_store()
 

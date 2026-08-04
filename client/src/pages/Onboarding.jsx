@@ -1,79 +1,162 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createFarm, addField } from '../api/farmApi'
 import { useAuth } from '../context/AuthContext'
+import { getStates, getDistricts, getTalukas, getPincode } from '../data/indiaLocations'
 
-const STEPS = ['Personal Info', 'Farm Location', 'First Field']
-
-const INDIAN_STATES = [
-  'Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa','Gujarat',
-  'Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala','Madhya Pradesh',
-  'Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland','Odisha','Punjab',
-  'Rajasthan','Sikkim','Tamil Nadu','Telangana','Tripura','Uttar Pradesh',
-  'Uttarakhand','West Bengal',
+const STEPS     = ['Personal Info', 'Farm Location', 'First Field']
+const SOIL_TYPES = [
+  { value: 'black',  label: 'Black (Cotton soil)' },
+  { value: 'red',    label: 'Red' },
+  { value: 'loamy',  label: 'Loamy' },
+  { value: 'sandy',  label: 'Sandy' },
+  { value: 'clay',   label: 'Clay' },
+  { value: 'silt',   label: 'Silt' },
+]
+const IRRIGATION_TYPES = ['Drip', 'Sprinkler', 'Flood', 'Canal', 'Borewell', 'Rainfed']
+const CROP_STAGES      = ['sowing', 'vegetative', 'flowering', 'fruiting', 'harvest']
+const SEASONS          = ['Kharif', 'Rabi', 'Zaid']
+const COMMON_CROPS     = [
+  'Cotton', 'Wheat', 'Rice', 'Maize', 'Sugarcane', 'Soybean',
+  'Groundnut', 'Bajra', 'Jowar', 'Chickpea', 'Mustard', 'Other',
 ]
 
-const SOIL_TYPES   = ['Black', 'Red', 'Alluvial', 'Laterite', 'Sandy', 'Loamy', 'Clayey']
-const CROP_STAGES  = ['sowing', 'growing', 'flowering', 'harvest']
-const SEASONS      = ['kharif', 'rabi', 'zaid']
-
 export default function Onboarding() {
-  const { user }  = useAuth()
-  const navigate  = useNavigate()
-  const [step, setStep] = useState(0)
-  const [error, setError]     = useState('')
+  const { user } = useAuth()
+  const navigate         = useNavigate()
+  const [step, setStep]  = useState(0)
+  const [error, setError]   = useState('')
   const [loading, setLoading] = useState(false)
 
-  // Form data
+  // Location cascade state
+  const [districts, setDistricts] = useState([])
+  const [talukas, setTalukas]     = useState([])
+
   const [farmData, setFarmData] = useState({
-    name: user?.name || '',
-    phone: user?.phone || '',
-    state: 'Gujarat',
-    district: '',
-    taluka: '',
-    village: '',
-    pincode: '',
-    soil_type: 'Black',
+    farm_name:       '',
     total_area_acres: '',
-    latitude: '',
-    longitude: '',
+    state:           '',
+    district:        '',
+    taluka:          '',
+    village:         '',
+    pincode:         '',
+    soil_type:       'black',
+    irrigation_type: 'Drip',
   })
+
   const [fieldData, setFieldData] = useState({
-    name: 'Field 1',
-    crop_name: '',
-    crop_stage: 'growing',
-    area_acres: '',
-    soil_type: 'Black',
-    season: 'kharif',
+    field_name:   'Field 1',
+    current_crop: '',
+    crop_stage:   'vegetative',
+    field_size:   '',
+    season:       'Kharif',
+    sow_date:     '',
   })
 
-  const setFarm  = (k, v) => setFarmData((p) => ({ ...p, [k]: v }))
-  const setField = (k, v) => setFieldData((p) => ({ ...p, [k]: v }))
+  const setFarm  = (k, v) => setFarmData(p => ({ ...p, [k]: v }))
+  const setField = (k, v) => setFieldData(p => ({ ...p, [k]: v }))
 
-  const handleNext = () => { setError(''); setStep((s) => s + 1) }
-  const handleBack = () => setStep((s) => s - 1)
+  // Sowing date bounds
+  const today = new Date().toISOString().split('T')[0]
+  const minSowDate = (() => {
+    const d = new Date()
+    d.setMonth(d.getMonth() - 5)
+    return d.toISOString().split('T')[0]
+  })()
+
+  // Cascade: state → districts
+  useEffect(() => {
+    const d = getDistricts(farmData.state)
+    setDistricts(d)
+    setFarm('district', d[0] || '')
+  }, [farmData.state])
+
+  // Cascade: district → talukas + pincode
+  useEffect(() => {
+    const t = getTalukas(farmData.state, farmData.district)
+    setTalukas(t)
+    setFarm('taluka', t[0] || '')
+    const pin = getPincode(farmData.state, farmData.district)
+    setFarm('pincode', pin)
+  }, [farmData.district])
+
+  // Step validation
+  const validateStep = () => {
+    if (step === 0) {
+      if (!farmData.farm_name.trim()) return 'Farm name is required'
+      if (!farmData.total_area_acres || farmData.total_area_acres <= 0) return 'Enter a valid farm area'
+    }
+    if (step === 1) {
+      if (!farmData.state)    return 'Please select a state'
+      if (!farmData.district) return 'Please select a district'
+      if (!farmData.pincode)  return 'Pincode is required'
+    }
+    return null
+  }
+
+  const handleNext = () => {
+    const err = validateStep()
+    if (err) { setError(err); return }
+    setError('')
+    setStep(s => s + 1)
+  }
+
+  const handleBack = () => { setError(''); setStep(s => s - 1) }
 
   const handleSubmit = async () => {
     setError('')
+
+    // Validate field area against farm area
+    const farmArea  = parseFloat(farmData.total_area_acres)
+    const fieldArea = parseFloat(fieldData.field_size)
+    if (fieldData.field_size && fieldArea > farmArea) {
+      setError(`Field area (${fieldArea} acres) cannot exceed total farm area (${farmArea} acres).`)
+      return
+    }
+
     setLoading(true)
     try {
-      const farmRes = await createFarm(farmData)
-      const farmId  = farmRes.data.farm?.id
-      if (farmId && fieldData.crop_name) {
-        await addField(farmId, fieldData)
+      const payload = {
+        farm_name:       farmData.farm_name,
+        state:           farmData.state,
+        district:        farmData.district,
+        taluka:          farmData.taluka,
+        village:         farmData.village,
+        pincode:         farmData.pincode,
+        farm_area:       parseFloat(farmData.total_area_acres),
+        area_unit:       'acre',
+        soil_type:       farmData.soil_type,
+        irrigation_type: farmData.irrigation_type,
+        current_crop:    fieldData.current_crop,
+        sow_date:        fieldData.sow_date || undefined,
       }
+
+      const farmRes = await createFarm(payload)
+      const farmId  = farmRes.data.farm?.id
+
+      if (farmId && fieldData.current_crop) {
+        await addField(farmId, {
+          field_name:   fieldData.field_name,
+          field_size:   parseFloat(fieldData.field_size) || parseFloat(farmData.total_area_acres),
+          current_crop: fieldData.current_crop,
+          sow_date:     fieldData.sow_date || undefined,
+        })
+      }
+
       navigate('/dashboard')
     } catch (err) {
-      setError(err.response?.data?.message || 'Something went wrong. Please try again.')
+      setError(err.response?.data?.error || err.response?.data?.message || 'Something went wrong. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/10 flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-lg">
-        {/* Progress */}
+
+        {/* Progress bar */}
         <div className="flex items-center gap-2 mb-6 justify-center">
           {STEPS.map((label, i) => (
             <div key={label} className="flex items-center gap-2">
@@ -94,122 +177,172 @@ export default function Onboarding() {
           <p className="text-sm text-gray-500 mb-6 font-body">Step {step + 1} of {STEPS.length}</p>
 
           {error && (
-            <div className="bg-danger/10 border border-danger/20 text-danger text-sm rounded-xl px-4 py-3 mb-5 font-body">
+            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 mb-5 font-body">
               {error}
             </div>
           )}
 
-          {/* Step 0: Personal Info */}
+          {/* ── Step 0: Farm Details ── */}
           {step === 0 && (
             <div className="space-y-4">
               <div>
-                <label className="label">Full Name</label>
-                <input className="input-field" value={farmData.name}
-                  onChange={(e) => setFarm('name', e.target.value)} placeholder="Ramesh Patel" />
-              </div>
-              <div>
-                <label className="label">Phone Number</label>
-                <input className="input-field" value={farmData.phone}
-                  onChange={(e) => setFarm('phone', e.target.value)} placeholder="+91 98765 43210" />
+                <label className="label">Farm Name</label>
+                <input className="input-field" value={farmData.farm_name}
+                  onChange={e => setFarm('farm_name', e.target.value)}
+                  placeholder="e.g. Ravi's Farm" />
               </div>
               <div>
                 <label className="label">Total Farm Area (acres)</label>
-                <input className="input-field" type="number" value={farmData.total_area_acres}
-                  onChange={(e) => setFarm('total_area_acres', e.target.value)} placeholder="e.g. 5" />
+                <input className="input-field" type="number" min="0.1" step="0.1"
+                  value={farmData.total_area_acres}
+                  onChange={e => setFarm('total_area_acres', e.target.value)}
+                  placeholder="e.g. 5" />
+              </div>
+              <div>
+                <label className="label">Irrigation Type</label>
+                <select className="input-field" value={farmData.irrigation_type}
+                  onChange={e => setFarm('irrigation_type', e.target.value)}>
+                  {IRRIGATION_TYPES.map(t => <option key={t}>{t}</option>)}
+                </select>
               </div>
             </div>
           )}
 
-          {/* Step 1: Farm Location */}
+          {/* ── Step 1: Farm Location ── */}
           {step === 1 && (
             <div className="space-y-4">
+
+              {/* State */}
               <div>
                 <label className="label">State</label>
-                <select className="input-field" value={farmData.state} onChange={(e) => setFarm('state', e.target.value)}>
-                  {INDIAN_STATES.map((s) => <option key={s}>{s}</option>)}
+                <select className="input-field" value={farmData.state}
+                  onChange={e => setFarm('state', e.target.value)}>
+                  <option value="">-- Select State --</option>
+                  {getStates().map(s => <option key={s}>{s}</option>)}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="label">District</label>
-                  <input className="input-field" value={farmData.district}
-                    onChange={(e) => setFarm('district', e.target.value)} placeholder="Anand" />
-                </div>
-                <div>
-                  <label className="label">Taluka</label>
-                  <input className="input-field" value={farmData.taluka}
-                    onChange={(e) => setFarm('taluka', e.target.value)} placeholder="Anklav" />
-                </div>
+
+              {/* District */}
+              <div>
+                <label className="label">District</label>
+                <select className="input-field" value={farmData.district}
+                  onChange={e => setFarm('district', e.target.value)}
+                  disabled={!farmData.state}>
+                  <option value="">-- Select District --</option>
+                  {districts.map(d => <option key={d}>{d}</option>)}
+                </select>
               </div>
+
+              {/* Taluka */}
+              <div>
+                <label className="label">Taluka</label>
+                <select className="input-field" value={farmData.taluka}
+                  onChange={e => setFarm('taluka', e.target.value)}
+                  disabled={!farmData.district}>
+                  <option value="">-- Select Taluka --</option>
+                  {talukas.map(t => <option key={t}>{t}</option>)}
+                </select>
+              </div>
+
+              {/* Village + Pincode */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="label">Village</label>
+                  <label className="label">Village (optional)</label>
                   <input className="input-field" value={farmData.village}
-                    onChange={(e) => setFarm('village', e.target.value)} placeholder="Karamsad" />
+                    onChange={e => setFarm('village', e.target.value)}
+                    placeholder="Your village" />
                 </div>
                 <div>
                   <label className="label">Pincode</label>
                   <input className="input-field" value={farmData.pincode}
-                    onChange={(e) => setFarm('pincode', e.target.value)} placeholder="388325" />
+                    onChange={e => setFarm('pincode', e.target.value)}
+                    placeholder="Auto-filled" maxLength={6} />
+                  <p className="text-xs text-gray-400 mt-1">Auto-filled from district</p>
                 </div>
               </div>
+
+              {/* Soil Type */}
               <div>
                 <label className="label">Soil Type</label>
-                <select className="input-field" value={farmData.soil_type} onChange={(e) => setFarm('soil_type', e.target.value)}>
-                  {SOIL_TYPES.map((s) => <option key={s}>{s}</option>)}
+                <select className="input-field" value={farmData.soil_type}
+                  onChange={e => setFarm('soil_type', e.target.value)}>
+                  {SOIL_TYPES.map(s => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
                 </select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="label">Latitude (optional)</label>
-                  <input className="input-field" type="number" step="0.0001" value={farmData.latitude}
-                    onChange={(e) => setFarm('latitude', e.target.value)} placeholder="22.4707" />
-                </div>
-                <div>
-                  <label className="label">Longitude (optional)</label>
-                  <input className="input-field" type="number" step="0.0001" value={farmData.longitude}
-                    onChange={(e) => setFarm('longitude', e.target.value)} placeholder="72.9677" />
-                </div>
               </div>
             </div>
           )}
 
-          {/* Step 2: First Field */}
+          {/* ── Step 2: First Field ── */}
           {step === 2 && (
             <div className="space-y-4">
+
+              {/* Farm area reference */}
+              <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-2 text-sm text-green-800 font-body">
+                Total farm area: <strong>{farmData.total_area_acres} acres</strong>
+                {fieldData.field_size && (
+                  <span className="ml-2 text-green-600">
+                    — remaining: <strong>{Math.max(0, parseFloat(farmData.total_area_acres) - parseFloat(fieldData.field_size || 0)).toFixed(1)} acres</strong>
+                  </span>
+                )}
+              </div>
+
               <div>
                 <label className="label">Field Name</label>
-                <input className="input-field" value={fieldData.name}
-                  onChange={(e) => setField('name', e.target.value)} placeholder="North Field" />
+                <input className="input-field" value={fieldData.field_name}
+                  onChange={e => setField('field_name', e.target.value)}
+                  placeholder="e.g. North Field" />
               </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="label">Current Crop</label>
-                  <input className="input-field" value={fieldData.crop_name}
-                    onChange={(e) => setField('crop_name', e.target.value)} placeholder="Kapas" />
-                </div>
-                <div>
-                  <label className="label">Crop Stage</label>
-                  <select className="input-field" value={fieldData.crop_stage} onChange={(e) => setField('crop_stage', e.target.value)}>
-                    {CROP_STAGES.map((s) => <option key={s}>{s}</option>)}
+                  <label className="label">Current Crop <span className="text-gray-400">(optional)</span></label>
+                  <select className="input-field" value={fieldData.current_crop}
+                    onChange={e => setField('current_crop', e.target.value)}>
+                    <option value="">-- No crop yet --</option>
+                    {COMMON_CROPS.map(c => <option key={c}>{c}</option>)}
                   </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="label">Area (acres)</label>
-                  <input className="input-field" type="number" value={fieldData.area_acres}
-                    onChange={(e) => setField('area_acres', e.target.value)} placeholder="2.5" />
                 </div>
                 <div>
                   <label className="label">Season</label>
-                  <select className="input-field" value={fieldData.season} onChange={(e) => setField('season', e.target.value)}>
-                    {SEASONS.map((s) => <option key={s}>{s}</option>)}
+                  <select className="input-field" value={fieldData.season}
+                    onChange={e => setField('season', e.target.value)}>
+                    {SEASONS.map(s => <option key={s}>{s}</option>)}
                   </select>
                 </div>
               </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Field Area (acres)</label>
+                  <input className="input-field" type="number" min="0.1" step="0.1"
+                    max={farmData.total_area_acres}
+                    value={fieldData.field_size}
+                    onChange={e => {
+                      const val = parseFloat(e.target.value)
+                      const max = parseFloat(farmData.total_area_acres)
+                      if (val > max) {
+                        setError(`Field area cannot exceed total farm area (${max} acres)`)
+                      } else {
+                        setError('')
+                      }
+                      setField('field_size', e.target.value)
+                    }}
+                    placeholder={farmData.total_area_acres || '2.5'} />
+                </div>
+                <div>
+                  <label className="label">Sowing Date <span className="text-gray-400">(optional)</span></label>
+                  <input className="input-field" type="date"
+                    min={minSowDate}
+                    max={today}
+                    value={fieldData.sow_date}
+                    onChange={e => setField('sow_date', e.target.value)} />
+                </div>
+              </div>
+
               <p className="text-xs text-gray-400 font-body">
-                * You can add more fields later from Farm Profile
+                * Crop stage is auto-calculated from sowing date. You can add more fields later.
               </p>
             </div>
           )}

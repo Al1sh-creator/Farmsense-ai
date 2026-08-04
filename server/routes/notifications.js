@@ -153,57 +153,18 @@ router.put('/prefs', auth, [
 // ==============================================
 router.post('/test-email', auth, async (req, res, next) => {
     try {
-        const nodemailer = require('nodemailer');
-
-        const transporter = nodemailer.createTransport({
-            host: process.env.EMAIL_HOST,
-            port: process.env.EMAIL_PORT,
-            auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS,
-            }
-        });
-
-        await transporter.sendMail({
-            from:    '"FarmSense AI" <noreply@farmsense.com>',
-            to:      req.user.email,
-            subject: 'FarmSense AI — Test Email',
-            html: `
-                <div style="font-family: Arial, sans-serif;
-                            max-width: 600px; margin: 0 auto;
-                            padding: 20px;">
-                    <h2 style="color: #2D6A4F;">
-                        Test Email from FarmSense AI
-                    </h2>
-                    <p>Hello ${req.user.name},</p>
-                    <p>
-                        Your email notifications are working correctly.
-                        You will receive weather alerts and AI suggestions
-                        at this email address.
-                    </p>
-                    <p style="color: #666; font-size: 14px;">
-                        Sent at: ${new Date().toLocaleString('en-IN')}
-                    </p>
-                    <hr style="border: none;
-                               border-top: 1px solid #eee;
-                               margin: 20px 0;" />
-                    <p style="color: #999; font-size: 12px;">
-                        FarmSense AI — Smart Farming Assistant
-                    </p>
-                </div>
-            `
-        });
-
+        const { sendTestEmail } = require('../services/emailService');
+        await sendTestEmail(req.user.email, req.user.name);
         res.json({
             success: true,
             message: `Test email sent to ${req.user.email}`
         });
-
     } catch (err) {
         console.error('[EMAIL ERROR]', err.message);
         res.status(500).json({
             success: false,
-            error: 'Failed to send test email. Check your email configuration.'
+            error: 'Failed to send test email.',
+            detail: err.message
         });
     }
 });

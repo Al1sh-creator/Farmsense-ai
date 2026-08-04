@@ -17,10 +17,11 @@ export default function Login() {
     setError('')
     setLoading(true)
     try {
-      await login(form.email, form.password)
-      navigate('/dashboard')
+      const res = await login(form.email, form.password)
+      // If profile not set up yet → onboarding, else → dashboard
+      navigate(res.user?.profile_completed ? '/dashboard' : '/onboarding')
     } catch (err) {
-      setError(err.response?.data?.message || 'Invalid email or password. (Is the backend server running?)')
+      setError(err.response?.data?.error || err.response?.data?.message || 'Invalid email or password.')
     } finally {
       setLoading(false)
     }
@@ -104,7 +105,12 @@ export default function Login() {
             </div>
 
             <div>
-              <label htmlFor="password" className="label">Password</label>
+              <div className="flex items-center justify-between mb-1">
+                <label htmlFor="password" className="label">Password</label>
+                <Link to="/forgot-password" className="text-xs text-primary hover:underline font-body">
+                  Forgot password?
+                </Link>
+              </div>
               <input
                 id="password"
                 name="password"

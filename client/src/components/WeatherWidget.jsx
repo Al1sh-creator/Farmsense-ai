@@ -16,7 +16,7 @@ function getIcon(condition = '') {
 }
 
 /**
- * WeatherWidget — 7-day forecast strip
+ * WeatherWidget — 16-Day Forecast strip
  * Props: forecast [] — array of { date, condition, temp_max, temp_min, rainfall }
  */
 export default function WeatherWidget({ forecast = [] }) {
@@ -35,7 +35,7 @@ export default function WeatherWidget({ forecast = [] }) {
 
   return (
     <div className="card animate-slide-up">
-      <h3 className="font-heading font-semibold text-gray-800 mb-4">7-Day Forecast</h3>
+      <h3 className="font-heading font-semibold text-gray-800 mb-4">16-Day Forecast</h3>
       <div className="flex gap-3 overflow-x-auto pb-1">
         {forecast.map((day, i) => {
           const date  = new Date(day.date)
