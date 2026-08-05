@@ -49,6 +49,8 @@ class SuggestionSerializer(serializers.Serializer):
     Field_Area_hectare = serializers.FloatField()
     Mulching_Used = serializers.CharField()
     Previous_Irrigation_mm = serializers.FloatField()
+    Forecast_Rainfall_7Days_mm = serializers.FloatField(required=False, default=0.0)
+    Forecast_Temp_7Days_Avg = serializers.FloatField(required=False, default=0.0)
 
     # Yield
     Crop_Year = serializers.IntegerField()

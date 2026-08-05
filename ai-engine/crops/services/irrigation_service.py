@@ -46,6 +46,8 @@ class IrrigationPredictionService:
             "Field_Area_hectare": data["Field_Area_hectare"],
             "Mulching_Used": data["Mulching_Used"],
             "Previous_Irrigation_mm": data["Previous_Irrigation_mm"],
+            "Forecast_Rainfall_7Days_mm": data["Forecast_Rainfall_7Days_mm"],
+            "Forecast_Temp_7Days_Avg": data["Forecast_Temp_7Days_Avg"],
             "Region": data["Region"],
         }])
 

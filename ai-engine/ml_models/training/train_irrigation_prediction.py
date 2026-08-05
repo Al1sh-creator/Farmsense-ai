@@ -60,6 +60,8 @@ NUMERIC_FEATURES = [
     "Wind_Speed_kmh",
     "Field_Area_hectare",
     "Previous_Irrigation_mm",
+    "Forecast_Rainfall_7Days_mm",
+    "Forecast_Temp_7Days_Avg",
 ]
 TARGET_COLUMN = "Irrigation_Need"
 

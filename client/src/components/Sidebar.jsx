@@ -11,6 +11,7 @@ const LINKS = [
   { icon: '🚜', label: 'Farm Profile',    to: '/farm-profile'    },
   { icon: '🌤️', label: 'Weather',         to: '/weather'         },
   { icon: '🏛️', label: 'Govt Schemes',    to: '/schemes'         },
+  { icon: '🌿', label: 'Disease Detection', to: '/disease-detection' },
   { icon: '⚙️', label: 'Settings',        to: '/settings'        },
 ]
 

@@ -70,6 +70,8 @@ def generate_suggestion(request):
         "Field_Area_hectare": data["Field_Area_hectare"],
         "Mulching_Used": data["Mulching_Used"],
         "Previous_Irrigation_mm": data["Previous_Irrigation_mm"],
+        "Forecast_Rainfall_7Days_mm": data.get("Forecast_Rainfall_7Days_mm", 0.0),
+        "Forecast_Temp_7Days_Avg": data.get("Forecast_Temp_7Days_Avg", 0.0),
         "Region": data["Region"],
     }
 
@@ -162,6 +164,8 @@ def generate_categorized_suggestion(request):
         "Field_Area_hectare": data["Field_Area_hectare"],
         "Mulching_Used": data["Mulching_Used"],
         "Previous_Irrigation_mm": data["Previous_Irrigation_mm"],
+        "Forecast_Rainfall_7Days_mm": data.get("Forecast_Rainfall_7Days_mm", 0.0),
+        "Forecast_Temp_7Days_Avg": data.get("Forecast_Temp_7Days_Avg", 0.0),
         "Region": data["Region"],
     }
 

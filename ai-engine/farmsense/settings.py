@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'crops',
     'suggestions',
     'predictions',
+    'disease',
 ]
 
 # ============================================

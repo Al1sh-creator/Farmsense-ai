@@ -61,6 +61,7 @@ app.get('/api/weather/test', (req, res) => {
     res.json({ message: 'weather route works' });
 });
 app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/disease',       require('./routes/disease'));
 
 // ── Health Check ──────────────────────────────
 app.get('/health', (req, res) => {

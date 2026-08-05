@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { createFarm, addField } from '../api/farmApi'
+import { createFarm, addField, getMyFarm } from '../api/farmApi'
 import { useAuth } from '../context/AuthContext'
 import { getStates, getDistricts, getTalukas, getPincode } from '../data/indiaLocations'
 
@@ -27,6 +27,17 @@ export default function Onboarding() {
   const [step, setStep]  = useState(0)
   const [error, setError]   = useState('')
   const [loading, setLoading] = useState(false)
+
+  // If farm already exists, redirect to /farm-profile to set NPK values
+  useEffect(() => {
+    getMyFarm()
+      .then((res) => {
+        if (res.data.farm?.id) {
+          navigate('/farm-profile', { replace: true })
+        }
+      })
+      .catch(() => { /* no farm yet — stay on onboarding */ })
+  }, [])
 
   // Location cascade state
   const [districts, setDistricts] = useState([])

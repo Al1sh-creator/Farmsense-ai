@@ -128,10 +128,10 @@ export default function Dashboard() {
                 </div>
               </div>
               <a
-                href="/onboarding"
+                href="/farm-profile"
                 className="btn-primary text-sm whitespace-nowrap shrink-0"
               >
-                Setup Farm Profile →
+                Update Farm Profile →
               </a>
             </div>
           </div>

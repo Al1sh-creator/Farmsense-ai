@@ -3,7 +3,7 @@ import Sidebar from '../components/Sidebar'
 import Navbar from '../components/Navbar'
 import AlertCard from '../components/AlertCard'
 import { useAuth } from '../context/AuthContext'
-import { getAlerts, getAlertHistory } from '../api/alertApi'
+import { getAlerts, getAlertHistory, generateDemoAlerts } from '../api/alertApi'
 import { getMyFarm } from '../api/farmApi'
 import { MOCK_ALERTS, MOCK_HISTORY_ALERTS } from '../mock/mockData'
 
@@ -15,6 +15,8 @@ export default function Alerts() {
   const [alerts, setAlerts]   = useState([])
   const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(true)
+  const [demoLoading, setDemoLoading] = useState(false)
+  const [demoMsg, setDemoMsg]         = useState('')
 
   useEffect(() => {
     if (isDemo) {
@@ -36,6 +38,26 @@ export default function Alerts() {
       .finally(() => setLoading(false))
   }, [isDemo])
 
+  const handleGenerateDemo = async () => {
+    setDemoLoading(true)
+    setDemoMsg('')
+    try {
+      await generateDemoAlerts()
+      // Refresh alerts
+      const farm = await getMyFarm()
+      const farmId = farm.data.farm?.id
+      const [activeRes, histRes] = await Promise.all([getAlerts(farmId), getAlertHistory()])
+      setAlerts(activeRes.data.alerts || [])
+      setHistory(histRes.data.alerts || [])
+      setTab('Active')
+      setDemoMsg('✅ 3 demo alerts created!')
+    } catch (err) {
+      setDemoMsg('❌ ' + (err.response?.data?.error || 'Failed. Make sure your farm profile is set up.'))
+    } finally {
+      setDemoLoading(false)
+    }
+  }
+
   const displayed = tab === 'Active' ? alerts : history
 
   return (
@@ -49,9 +71,26 @@ export default function Alerts() {
           </div>
         )}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto w-full">
-          <div className="mb-6">
-            <h1 className="font-heading font-bold text-2xl text-gray-900">🔔 Alerts</h1>
-            <p className="text-sm text-gray-500 font-body mt-1">Weather and farming alerts for your crops</p>
+          <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h1 className="font-heading font-bold text-2xl text-gray-900">🔔 Alerts</h1>
+              <p className="text-sm text-gray-500 font-body mt-1">Weather and farming alerts for your crops</p>
+            </div>
+            {!isDemo && (
+              <div className="flex flex-col items-start sm:items-end gap-1">
+                <button
+                  onClick={handleGenerateDemo}
+                  disabled={demoLoading}
+                  className="flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-800 border border-amber-300 rounded-xl text-sm font-medium hover:bg-amber-200 transition-all disabled:opacity-50"
+                >
+                  {demoLoading ? (
+                    <span className="w-4 h-4 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
+                  ) : '🧪'}
+                  {demoLoading ? 'Generating...' : 'Generate Demo Alerts'}
+                </button>
+                {demoMsg && <p className="text-xs text-gray-500 font-body">{demoMsg}</p>}
+              </div>
+            )}
           </div>
 
           <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit mb-6">

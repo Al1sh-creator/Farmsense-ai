@@ -236,6 +236,22 @@ const generateCategorizedSuggestions = async (farm, weatherForecast) => {
         const hum  = weatherForecast?.[0]?.humidity || 60;
         const rain = weatherForecast?.[0]?.rainfall || 0;
 
+        // Calculate 7-day forecast totals/averages
+        let totalRain7Days = 0;
+        let sumTemp7Days = 0;
+        let countDays = 0;
+        
+        if (Array.isArray(weatherForecast) && weatherForecast.length > 0) {
+            const daysToConsider = Math.min(weatherForecast.length, 7);
+            for (let i = 0; i < daysToConsider; i++) {
+                totalRain7Days += (weatherForecast[i].rainfall || weatherForecast[i].rainfall_mm || 0);
+                sumTemp7Days += (weatherForecast[i].temp_max || temp);
+                countDays++;
+            }
+        }
+        
+        const avgTemp7Days = countDays > 0 ? (sumTemp7Days / countDays) : temp;
+
         const payload = {
             // Crop Recommendation
             N: farm.npk_nitrogen || 50,
@@ -276,6 +292,8 @@ const generateCategorizedSuggestions = async (farm, weatherForecast) => {
             Field_Area_hectare: (farm.farm_area || 1) * 0.4047,
             Mulching_Used: 'No',
             Previous_Irrigation_mm: 0,
+            Forecast_Rainfall_7Days_mm: Number(totalRain7Days.toFixed(2)),
+            Forecast_Temp_7Days_Avg: Number(avgTemp7Days.toFixed(2)),
 
             // Yield
             Crop_Year: new Date().getFullYear(),

@@ -16,16 +16,6 @@ const {
     sendWelcomeEmail,
 } = require('../services/emailService');
 
-// ── Helper: Validate email domain has MX records ──
-const validateEmailDomain = async (email) => {
-    const domain = email.split('@')[1];
-    try {
-        const records = await dns.resolveMx(domain);
-        return records && records.length > 0;
-    } catch {
-        return false;
-    }
-};
 
 // ── Helper: Get Device Info ───────────────────
 const getDeviceInfo = (req) => {
@@ -73,8 +63,7 @@ router.post('/register', [
         .notEmpty().withMessage('Name is required')
         .isLength({ min: 2 }).withMessage('Name must be at least 2 characters'),
     body('email')
-        .isEmail().withMessage('Valid email is required')
-        .normalizeEmail(),
+        .isEmail().withMessage('Valid email is required'),
     body('phone')
         .trim()
         .notEmpty().withMessage('Phone is required')
@@ -96,15 +85,6 @@ router.post('/register', [
         }
 
         const { name, email, phone, password } = req.body;
-
-        // 2a. Validate email domain has real MX records
-        const domainValid = await validateEmailDomain(email);
-        if (!domainValid) {
-            return res.status(400).json({
-                success: false,
-                error: `The email address "${email}" does not appear to be valid. Please enter a real email address.`
-            });
-        }
 
         // 2b. Check email or phone already exists
         const existing = await pool.query(            `SELECT id FROM users
@@ -146,20 +126,13 @@ router.post('/register', [
             [user.id]
         );
 
-        // 7. Send verification email — block if it fails
+        // 7. Send verification email — non-blocking
+        let emailWarning = null;
         try {
             await sendVerificationEmail(email, name, verifyToken);
         } catch (emailErr) {
             console.error('[EMAIL] Verification send failed:', emailErr.message);
-
-            // Roll back the user insert so they can retry with correct email
-            await pool.query('DELETE FROM users WHERE id = $1', [user.id]);
-
-            return res.status(400).json({
-                success: false,
-                error: 'Could not send verification email. Please check your email address and try again.',
-                detail: emailErr.message
-            });
+            emailWarning = 'Account created, but we could not send the verification email. Please check your email settings or contact support.';
         }
 
         // 8. Generate JWT
@@ -167,7 +140,8 @@ router.post('/register', [
 
         res.status(201).json({
             success: true,
-            message: 'Registration successful. Please verify your email.',
+            message: emailWarning || 'Registration successful. Please verify your email.',
+            emailWarning: emailWarning || null,
             token,
             user: {
                 id: user.id,
@@ -189,8 +163,7 @@ router.post('/register', [
 // ==============================================
 router.post('/login', [
     body('email')
-        .isEmail().withMessage('Valid email is required')
-        .normalizeEmail(),
+        .isEmail().withMessage('Valid email is required'),
     body('password')
         .notEmpty().withMessage('Password is required'),
 ], async (req, res, next) => {

@@ -17,6 +17,7 @@ import ResetPassword from './pages/ResetPassword'
 import Settings from './pages/Settings'
 import Weather from './pages/Weather'
 import GovSchemes from './pages/GovSchemes'
+import DiseaseDetection from './pages/DiseaseDetection'
 
 export default function App() {
   return (
@@ -41,6 +42,7 @@ export default function App() {
             <Route path="/weather"         element={<ProtectedRoute><Weather /></ProtectedRoute>} />
             <Route path="/schemes"         element={<ProtectedRoute><GovSchemes /></ProtectedRoute>} />
             <Route path="/settings"        element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+            <Route path="/disease-detection" element={<ProtectedRoute><DiseaseDetection /></ProtectedRoute>} />
 
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
