@@ -27,6 +27,10 @@ export default function CropComparison() {
         { key: 'mungbean', name: 'Moong' },
         { key: 'groundnut', name: 'Groundnut' },
         { key: 'mustard', name: 'Mustard' },
+        { key: 'watermelon', name: 'Tarbooz (Watermelon)' },
+        { key: 'cucumber', name: 'Kheera (Cucumber)' },
+        { key: 'sugarcane', name: 'Ganna (Sugarcane)' },
+        { key: 'banana', name: 'Kela (Banana)' },
       ])
       return
     }

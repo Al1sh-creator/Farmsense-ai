@@ -89,6 +89,38 @@ const CROP_DATA = {
         input_cost_per_acre: 7000,
         avg_yield_per_acre: 8,
     },
+    watermelon: {
+        name: 'Watermelon', local_name: 'Tarbooz',
+        season: 'Zaid', duration_days: 90,
+        water_requirement: 'high',
+        suitable_soils: ['sandy', 'loamy'],
+        input_cost_per_acre: 15000,
+        avg_yield_per_acre: 100,
+    },
+    cucumber: {
+        name: 'Cucumber', local_name: 'Kheera',
+        season: 'Zaid', duration_days: 70,
+        water_requirement: 'medium',
+        suitable_soils: ['loamy', 'sandy'],
+        input_cost_per_acre: 12000,
+        avg_yield_per_acre: 40,
+    },
+    sugarcane: {
+        name: 'Sugarcane', local_name: 'Ganna',
+        season: 'All Year', duration_days: 365,
+        water_requirement: 'high',
+        suitable_soils: ['loamy', 'clay', 'black'],
+        input_cost_per_acre: 25000,
+        avg_yield_per_acre: 300,
+    },
+    banana: {
+        name: 'Banana', local_name: 'Kela',
+        season: 'All Year', duration_days: 300,
+        water_requirement: 'high',
+        suitable_soils: ['loamy', 'black'],
+        input_cost_per_acre: 30000,
+        avg_yield_per_acre: 150,
+    },
 };
 
 // ── Static Market Prices (Gujarat averages) ───
@@ -103,6 +135,10 @@ const MARKET_PRICES = {
     soybean:   3800,
     bajra:     1800,
     mustard:   5000,
+    watermelon: 1200,
+    cucumber:   1500,
+    sugarcane: 300,
+    banana:    1500,
 };
 
 // ── Helper: Calculate Profit ──────────────────
@@ -172,7 +208,8 @@ router.get('/list', auth, async (req, res, next) => {
         // e.g. GET /api/crops/list?season=Kharif
         if (season) {
             crops = crops.filter(c =>
-                c.season.toLowerCase() === season.toLowerCase()
+                c.season.toLowerCase() === season.toLowerCase() ||
+                c.season.toLowerCase() === 'all year'
             );
         }
 

@@ -13,5 +13,5 @@ echo Starting Client (React - Port 5173)...
 start "FarmSense Client" cmd /k "cd client && npm run dev"
 
 echo.
-echo ✅ All servers are starting in new windows!
+echo  All servers are starting in new windows!
 echo You can close this window.
