@@ -30,8 +30,8 @@ function useCounter(target, duration = 1200) {
 
 export default function Landing() {
   const [alerts12, alertRef] = useCounter(1200)
-  const [farms, farmsRef]    = useCounter(340)
-  const [saved, savedRef]    = useCounter(4)
+  const [farms, farmsRef] = useCounter(340)
+  const [saved, savedRef] = useCounter(4)
 
   return (
     <div className="min-h-screen" style={{ fontFamily: "'Inter', sans-serif", backgroundColor: '#faf9f6' }}>
@@ -71,7 +71,7 @@ export default function Landing() {
               padding: '5px 14px', borderRadius: 99, marginBottom: 20,
               letterSpacing: '0.5px', textTransform: 'uppercase',
             }}>
-              🇮🇳 Made for Gujarat Farmers
+              Made for Indian Farmers
             </span>
 
             <h1 style={{
@@ -83,7 +83,7 @@ export default function Landing() {
             </h1>
 
             <p style={{ fontSize: 17, color: '#5a6a5a', lineHeight: 1.7, maxWidth: 460, marginBottom: 36 }}>
-              FarmSense AI watches your weather, knows your soil, and tells you exactly what to do — 
+              FarmSense AI watches your weather, knows your soil, and tells you exactly what to do —
               before problems hit your crops.
             </p>
 
@@ -148,8 +148,8 @@ export default function Landing() {
                 </p>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                   {[
-                    { crop: 'Moong',     score: 92, best: true  },
-                    { crop: 'Kapas',     score: 74, best: false },
+                    { crop: 'Moong', score: 92, best: true },
+                    { crop: 'Kapas', score: 74, best: false },
                     { crop: 'Groundnut', score: 61, best: false },
                   ].map(({ crop, score, best }) => (
                     <div key={crop} style={{
@@ -196,8 +196,8 @@ export default function Landing() {
         <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 24px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
           {[
             { ref: alertRef, val: alerts12, suffix: '+', unit: 'alerts sent', label: 'to farmers this month' },
-            { ref: farmsRef, val: farms,    suffix: '+', unit: 'farms',       label: 'actively using FarmSense' },
-            { ref: savedRef, val: saved,    suffix: 'L+', unit: '₹ saved',   label: 'avg per farmer per season' },
+            { ref: farmsRef, val: farms, suffix: '+', unit: 'farms', label: 'actively using FarmSense' },
+            { ref: savedRef, val: saved, suffix: 'L+', unit: '₹ saved', label: 'avg per farmer per season' },
           ].map(({ ref, val, suffix, unit, label }, i) => (
             <div key={i} ref={ref} style={{ textAlign: 'center' }}>
               <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 36, fontWeight: 700, color: '#2D6A4F', lineHeight: 1 }}>
@@ -418,7 +418,7 @@ export default function Landing() {
             © 2024 · Built for Indian farmers
           </p>
           <div style={{ display: 'flex', gap: 20 }}>
-            <Link to="/login"    style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', textDecoration: 'none' }}>Login</Link>
+            <Link to="/login" style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', textDecoration: 'none' }}>Login</Link>
             <Link to="/register" style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', textDecoration: 'none' }}>Register</Link>
           </div>
         </div>

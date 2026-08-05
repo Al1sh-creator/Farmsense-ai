@@ -63,11 +63,13 @@ router.post('/register', [
         .notEmpty().withMessage('Name is required')
         .isLength({ min: 2 }).withMessage('Name must be at least 2 characters'),
     body('email')
-        .isEmail().withMessage('Valid email is required'),
+        .isEmail().withMessage('Valid email is required')
+        .normalizeEmail(),
     body('phone')
         .trim()
+        .customSanitizer(val => (val ? val.replace(/[\s\-\(\)]/g, '') : ''))
         .notEmpty().withMessage('Phone is required')
-        .isLength({ min: 10, max: 15 }).withMessage('Invalid phone number'),
+        .isLength({ min: 10, max: 15 }).withMessage('Invalid phone number (must be 10-15 digits)'),
     body('password')
         .isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
 ], async (req, res, next) => {
@@ -77,6 +79,7 @@ router.post('/register', [
         if (!errors.isEmpty()) {
             return res.status(400).json({
                 success: false,
+                error: errors.array()[0].msg,
                 errors: errors.array().map(e => ({
                     field: e.path,
                     message: e.msg
@@ -86,8 +89,9 @@ router.post('/register', [
 
         const { name, email, phone, password } = req.body;
 
-        // 2b. Check email or phone already exists
-        const existing = await pool.query(            `SELECT id FROM users
+        // 2. Check email or phone already exists
+        const existing = await pool.query(
+            `SELECT id FROM users
              WHERE email = $1 OR phone = $2`,
             [email, phone]
         );
@@ -126,22 +130,17 @@ router.post('/register', [
             [user.id]
         );
 
-        // 7. Send verification email — non-blocking
-        let emailWarning = null;
-        try {
-            await sendVerificationEmail(email, name, verifyToken);
-        } catch (emailErr) {
+        // 7. Send verification email — truly non-blocking background process
+        sendVerificationEmail(email, name, verifyToken).catch(emailErr => {
             console.error('[EMAIL] Verification send failed:', emailErr.message);
-            emailWarning = 'Account created, but we could not send the verification email. Please check your email settings or contact support.';
-        }
+        });
 
         // 8. Generate JWT
         const token = generateToken(user.id);
 
         res.status(201).json({
             success: true,
-            message: emailWarning || 'Registration successful. Please verify your email.',
-            emailWarning: emailWarning || null,
+            message: 'Registration successful.',
             token,
             user: {
                 id: user.id,

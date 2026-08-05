@@ -89,7 +89,6 @@ export default function Settings() {
               <div className="space-y-3">
                 {[
                   { key: 'email_alerts', label: 'Email Notifications', icon: '📧', desc: `Alerts sent to ${user?.email}` },
-                  { key: 'sms_alerts',   label: 'SMS Notifications',   icon: '📱', desc: `Alerts sent to ${user?.phone || 'your phone'}` },
                 ].map(({ key, label, icon, desc }) => (
                   <div key={key} className="flex items-center justify-between p-4 rounded-xl bg-background">
                     <div className="flex items-center gap-3">

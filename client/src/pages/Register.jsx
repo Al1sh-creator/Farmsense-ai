@@ -23,7 +23,11 @@ export default function Register() {
       await register({ name: form.name, email: form.email, phone: form.phone, password: form.password })
       navigate('/onboarding')
     } catch (err) {
-      setError(err.response?.data?.error || err.response?.data?.message || 'Registration failed. Try again.')
+      const serverMsg = err.response?.data?.error
+        || err.response?.data?.errors?.[0]?.message
+        || err.response?.data?.message
+        || 'Registration failed. Try again.'
+      setError(serverMsg)
     } finally {
       setLoading(false)
     }
@@ -61,8 +65,8 @@ export default function Register() {
 
             <div>
               <label htmlFor="phone" className="label">Phone Number</label>
-              <input id="phone" name="phone" type="tel" value={form.phone}
-                onChange={handleChange} placeholder="+91 98765 43210" className="input-field" />
+              <input id="phone" name="phone" type="tel" required value={form.phone}
+                onChange={handleChange} placeholder="9876543210" className="input-field" />
             </div>
 
             <div>
