@@ -238,20 +238,71 @@ router.post('/run', auth, requireProfile, async (req, res, next) => {
             [farm.id]
         );
 
-        // Generate actual textual AI suggestions for AI Suggestions table
-        // Normally done in the background, but let's insert the LLM response as a suggestion
+        // ── Generate 4 separate categorized AI suggestions ─────────────────
+        // Call Django /api/suggestions/categorized/ → returns irrigation,
+        // fertilizer, pest_risk, harvest objects with LLM-enriched text.
+        let categorizedSuggestions = [];
+        try {
+            const catResult = await aiClient.generateCategorizedSuggestions(farm, weatherForecast);
+            categorizedSuggestions = catResult.suggestions || [];
+        } catch (catErr) {
+            console.error('[ANALYSIS] Categorized suggestions failed:', catErr.message);
+            // Fallback: build 4 basic suggestions from ML predictions alone
+            categorizedSuggestions = [
+                {
+                    category: 'irrigation',
+                    title: `💧 Irrigation: ${preds.irrigation_need || 'Check Required'}`,
+                    suggestion_text: `Based on soil and weather analysis, your irrigation need is: ${preds.irrigation_need}. Monitor soil moisture and irrigate accordingly.`,
+                    priority: 'medium',
+                },
+                {
+                    category: 'fertilizer',
+                    title: `🧪 Fertilizer: Apply ${preds.recommended_fertilizer || 'Balanced NPK'}`,
+                    suggestion_text: `ML model recommends applying ${preds.recommended_fertilizer} fertilizer for your crop. Apply at the correct growth stage for optimal results.`,
+                    priority: 'medium',
+                },
+                {
+                    category: 'pest_risk',
+                    title: `🐛 Pest Risk Assessment for ${preds.recommended_crop || 'Your Crop'}`,
+                    suggestion_text: `Monitor your ${preds.recommended_crop} crop regularly for signs of pest and disease. Scout fields weekly and apply preventive measures if needed.`,
+                    priority: 'low',
+                },
+                {
+                    category: 'harvest',
+                    title: `🌾 Yield Forecast: ${preds.predicted_yield || 0} t/ha`,
+                    suggestion_text: `Expected yield is ${preds.predicted_yield} tonnes per hectare. Plan your harvest timeline and post-harvest storage in advance.`,
+                    priority: 'medium',
+                },
+            ];
+        }
+
+        // ── Clear previous suggestions for this farm ────────────────────────
+        // Ensures running AI analysis replaces old suggestions with fresh ones
         await pool.query(
-            `INSERT INTO ai_suggestions (
-                farm_id, category, title, suggestion_text, priority, valid_for_date
-            ) VALUES ($1, $2, $3, $4, $5, CURRENT_DATE)`,
-            [
-                farm.id, 
-                'all', 
-                'FarmSense AI Daily Briefing', 
-                aiResult.ai_recommendation, 
-                'high'
-            ]
+            `DELETE FROM ai_suggestions WHERE farm_id = $1`,
+            [farm.id]
         );
+
+        // Insert each of the 4 categorized suggestions into ai_suggestions table
+        for (const suggestion of categorizedSuggestions) {
+            const suggestionText = typeof suggestion.suggestion_text === 'object'
+                ? JSON.stringify(suggestion.suggestion_text)
+                : suggestion.suggestion_text;
+
+            await pool.query(
+                `INSERT INTO ai_suggestions (
+                    farm_id, category, title, suggestion_text, priority, valid_for_date
+                ) VALUES ($1, $2, $3, $4, $5, CURRENT_DATE)
+                ON CONFLICT DO NOTHING`,
+                [
+                    farm.id,
+                    suggestion.category,
+                    suggestion.title,
+                    suggestionText,
+                    suggestion.priority || 'medium',
+                ]
+            );
+        }
 
         res.json({
             success: true,

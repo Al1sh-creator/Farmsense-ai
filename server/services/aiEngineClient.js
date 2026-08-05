@@ -209,7 +209,11 @@ const generateSuggestions = async (farm, weatherForecast, userQuery = "", histor
             Area: farm.farm_area || 1,
             Annual_Rainfall: 800,
             Fertilizer: 50,
-            Pesticide: 2
+            Pesticide: 2,
+
+            // Location (for weather in pest risk)
+            latitude: farm.latitude || null,
+            longitude: farm.longitude || null,
         };
 
         const response = await djangoClient.post('/api/suggestions/', payload);
@@ -218,6 +222,84 @@ const generateSuggestions = async (farm, weatherForecast, userQuery = "", histor
         console.error('[AI ENGINE] Suggestions error:', err.message);
         if (err.response?.data) console.error(JSON.stringify(err.response.data, null, 2));
         throw new Error('Django suggestions service unavailable');
+    }
+};
+
+// ==============================================
+// 5b. Generate Categorized AI Suggestions
+// POST /api/suggestions/categorized/
+// Returns 4 separate suggestion objects: irrigation, fertilizer, pest_risk, harvest
+// ==============================================
+const generateCategorizedSuggestions = async (farm, weatherForecast) => {
+    try {
+        const temp = weatherForecast?.[0]?.temp_max || 30;
+        const hum  = weatherForecast?.[0]?.humidity || 60;
+        const rain = weatherForecast?.[0]?.rainfall || 0;
+
+        const payload = {
+            // Crop Recommendation
+            N: farm.npk_nitrogen || 50,
+            P: farm.npk_phosphorus || 50,
+            K: farm.npk_potassium || 50,
+            temperature: temp,
+            humidity: hum,
+            ph: farm.ph_level || 6.5,
+            rainfall: rain * 30,
+
+            // Fertilizer
+            Soil_Type: farm.soil_type || 'Loamy',
+            Crop_Type: farm.current_crop || 'Unknown',
+            Crop_Growth_Stage: farm.crop_stage || 'Vegetative',
+            Season: farm.current_season || 'Kharif',
+            Irrigation_Type: farm.irrigation_type || 'Rainfed',
+            Previous_Crop: 'Unknown',
+            Region: farm.district || 'Unknown',
+            Soil_pH: farm.ph_level || 6.5,
+            Soil_Moisture: 40,
+            Organic_Carbon: 0.5,
+            Electrical_Conductivity: 0.5,
+            Nitrogen_Level: farm.npk_nitrogen || 50,
+            Phosphorus_Level: farm.npk_phosphorus || 50,
+            Potassium_Level: farm.npk_potassium || 50,
+            Temperature: temp,
+            Humidity: hum,
+            Rainfall: rain,
+            Fertilizer_Used_Last_Season: 0,
+            Yield_Last_Season: 0,
+
+            // Irrigation
+            Temperature_C: temp,
+            Rainfall_mm: rain,
+            Sunlight_Hours: 8,
+            Wind_Speed_kmh: 10,
+            Water_Source: farm.water_source || 'Borewell',
+            Field_Area_hectare: (farm.farm_area || 1) * 0.4047,
+            Mulching_Used: 'No',
+            Previous_Irrigation_mm: 0,
+
+            // Yield
+            Crop_Year: new Date().getFullYear(),
+            State: farm.state || 'Unknown',
+            Area: farm.farm_area || 1,
+            Annual_Rainfall: 800,
+            Fertilizer: 50,
+            Pesticide: 2,
+
+            // Location for weather-based pest risk
+            latitude: farm.latitude || null,
+            longitude: farm.longitude || null,
+
+            // Not used in categorized but needed by serializer
+            user_query: '',
+            history: {},
+        };
+
+        const response = await djangoClient.post('/api/suggestions/categorized/', payload);
+        return response.data;  // { suggestions: [ {...}, {...}, {...}, {...} ] }
+    } catch (err) {
+        console.error('[AI ENGINE] Categorized suggestions error:', err.message);
+        if (err.response?.data) console.error(JSON.stringify(err.response.data, null, 2));
+        throw new Error('Django categorized suggestions service unavailable');
     }
 };
 
@@ -248,5 +330,6 @@ module.exports = {
     runFullPipeline,
     compareCrops,
     generateSuggestions,
+    generateCategorizedSuggestions,
     checkDjangoHealth,
 };

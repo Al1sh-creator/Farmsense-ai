@@ -64,31 +64,31 @@ export const MOCK_SUGGESTIONS = [
   {
     id: 1, category: "irrigation", priority: "high",
     title: "Irrigate North Field before Thursday rain",
-    description: "Your Kapas is at flowering stage and needs consistent moisture. Irrigate today (Tue) so the crop is not stressed before the storm hits Thursday.",
+    suggestion_text: "Your Kapas is at flowering stage and needs consistent moisture. Irrigate today (Tue) so the crop is not stressed before the storm hits Thursday.",
     created_at: new Date().toISOString(),
   },
   {
     id: 2, category: "fertilizer", priority: "medium",
     title: "Apply Urea to Moong in South Field",
-    description: "Moong at growing stage typically needs a nitrogen top-dressing. Apply 20kg Urea/acre this week. Avoid applying if rain is forecast within 24 hours.",
+    suggestion_text: "Moong at growing stage typically needs a nitrogen top-dressing. Apply 20kg Urea/acre this week. Avoid applying if rain is forecast within 24 hours.",
     created_at: new Date(Date.now() - 86400000).toISOString(),
   },
   {
     id: 3, category: "pest_risk", priority: "high",
     title: "Scout Kapas for Bollworm",
-    description: "Current temperature and humidity profile matches peak bollworm activity window. Check 10 random plants per field. If >5% damage, apply recommended pesticide.",
+    suggestion_text: "Current temperature and humidity profile matches peak bollworm activity window. Check 10 random plants per field. If >5% damage, apply recommended pesticide.",
     created_at: new Date(Date.now() - 86400000).toISOString(),
   },
   {
     id: 4, category: "harvest", priority: "low",
     title: "Groundnut harvest window: 3-4 weeks",
-    description: "Based on your sowing date and current growing conditions, expected harvest window is mid-August. Monitor for pod fill completion.",
+    suggestion_text: "Based on your sowing date and current growing conditions, expected harvest window is mid-August. Monitor for pod fill completion.",
     created_at: new Date(Date.now() - 2 * 86400000).toISOString(),
   },
   {
     id: 5, category: "irrigation", priority: "medium",
     title: "Skip irrigation on rain days",
-    description: "Skip Wednesday and Thursday irrigation for all fields. Forecasted 28mm rainfall will adequately cover crop water needs.",
+    suggestion_text: "Skip Wednesday and Thursday irrigation for all fields. Forecasted 28mm rainfall will adequately cover crop water needs.",
     created_at: new Date(Date.now() - 2 * 86400000).toISOString(),
   },
 ]

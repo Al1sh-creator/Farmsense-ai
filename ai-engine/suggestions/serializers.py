@@ -57,3 +57,7 @@ class SuggestionSerializer(serializers.Serializer):
     Annual_Rainfall = serializers.FloatField()
     Fertilizer = serializers.FloatField()
     Pesticide = serializers.FloatField()
+
+    # Location (optional — used for weather-based pest risk in categorized suggestions)
+    latitude  = serializers.FloatField(required=False, allow_null=True, default=None)
+    longitude = serializers.FloatField(required=False, allow_null=True, default=None)

@@ -84,44 +84,49 @@ export default function Suggestions() {
         )}
         
         <main className="flex-1 flex flex-col lg:flex-row gap-6 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full overflow-hidden">
-          {/* Left Column: Static Suggestions */}
-          <div className="flex-1 flex flex-col overflow-y-auto pr-2">
-            <div className="mb-6">
-              <h1 className="font-heading font-bold text-2xl text-gray-900">💡 Daily Insights</h1>
-              <p className="text-sm text-gray-500 font-body mt-1">Scheduled farming advice from our ML models</p>
+          {/* Left Column: Suggestions */}
+          <div className="flex-1 flex flex-col min-h-0 min-w-0 pr-2">
+            {/* Sticky/Fixed Header & Category Tabs */}
+            <div className="shrink-0 mb-4">
+              <div className="mb-4">
+                <h1 className="font-heading font-bold text-2xl text-gray-900">💡 Daily Insights</h1>
+                <p className="text-sm text-gray-500 font-body mt-1">Scheduled farming advice from our ML models</p>
+              </div>
+
+              {/* Category Filter Tabs */}
+              <div className="flex gap-2 overflow-x-auto py-1 pb-3 border-b border-gray-100">
+                {CATEGORIES.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setCategory(cat)}
+                    className={`shrink-0 px-4 py-2 rounded-xl text-sm font-medium transition-all font-body flex items-center gap-1.5 cursor-pointer
+                      ${category === cat
+                        ? 'bg-primary text-white shadow-md scale-[1.02]'
+                        : 'bg-white text-gray-600 border border-gray-200 hover:border-secondary hover:text-secondary hover:bg-gray-50'
+                      }`}
+                  >
+                    {CAT_LABELS[cat]}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div className="flex gap-2 overflow-x-auto pb-2 mb-6">
-              {CATEGORIES.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setCategory(cat)}
-                  className={`shrink-0 px-4 py-2 rounded-xl text-sm font-medium transition-all font-body
-                    ${category === cat
-                      ? 'bg-primary text-white shadow-sm'
-                      : 'bg-white text-gray-500 border border-gray-200 hover:border-secondary hover:text-secondary'
-                    }`}
-                >
-                  {CAT_LABELS[cat]}
-                </button>
-              ))}
+            {/* Scrollable Cards List */}
+            <div className="flex-1 overflow-y-auto pr-1 space-y-4 pb-8 min-h-0">
+              {loading ? (
+                <div className="space-y-4">
+                  {[1, 2, 3].map(i => <div key={i} className="card h-32 animate-pulse bg-gray-50" />)}
+                </div>
+              ) : filtered.length ? (
+                filtered.map((s) => <SuggestionCard key={s.id} suggestion={s} />)
+              ) : (
+                <div className="card text-center py-16">
+                  <span className="text-5xl">🤖</span>
+                  <h3 className="font-heading font-semibold text-gray-700 mt-4">No Insights Yet</h3>
+                  <p className="text-sm text-gray-500 font-body mt-1">Check back after daily analysis runs.</p>
+                </div>
+              )}
             </div>
-
-            {loading ? (
-              <div className="space-y-4">
-                {[1, 2, 3].map(i => <div key={i} className="card h-32 animate-pulse bg-gray-50" />)}
-              </div>
-            ) : filtered.length ? (
-              <div className="space-y-4 pb-10">
-                {filtered.map((s) => <SuggestionCard key={s.id} suggestion={s} />)}
-              </div>
-            ) : (
-              <div className="card text-center py-16">
-                <span className="text-5xl">🤖</span>
-                <h3 className="font-heading font-semibold text-gray-700 mt-4">No Insights Yet</h3>
-                <p className="text-sm text-gray-500 font-body mt-1">Check back after daily analysis runs.</p>
-              </div>
-            )}
           </div>
 
           {/* Right Column: AI Chat */}
