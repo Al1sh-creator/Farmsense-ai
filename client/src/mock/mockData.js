@@ -6,6 +6,7 @@ export const MOCK_USER = {
   name: 'Ramesh Patel',
   email: 'ramesh@farmsense.ai',
   phone: '+91 98765 43210',
+  is_admin: true,
 }
 
 export const MOCK_FARM = {

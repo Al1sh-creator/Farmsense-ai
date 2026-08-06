@@ -34,7 +34,8 @@ const auth = async (req, res, next) => {
                 phone,
                 profile_completed,
                 is_email_verified,
-                preferred_language
+                preferred_language,
+                is_admin
             FROM users
             WHERE id = $1`,
             [decoded.id]
@@ -89,4 +90,14 @@ const requireEmailVerified = (req, res, next) => {
     next();
 };
 
-module.exports = { auth, requireProfile, requireEmailVerified };
+// ── Middleware 4: Check Admin ─────────────────
+const requireAdmin = (req, res, next) => {
+    if (!req.user.is_admin) {
+        return res.status(403).json({
+            error: 'Access denied. Admin privileges required.'
+        });
+    }
+    next();
+};
+
+module.exports = { auth, requireProfile, requireEmailVerified, requireAdmin };

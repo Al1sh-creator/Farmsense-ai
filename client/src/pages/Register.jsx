@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { GoogleLogin } from '@react-oauth/google'
 import { useAuth } from '../context/AuthContext'
 
 export default function Register() {
-  const { register } = useAuth()
+  const { register, googleLogin } = useAuth()
   const navigate     = useNavigate()
   const [form, setForm]       = useState({ name: '', email: '', phone: '', password: '', confirm: '' })
   const [error, setError]     = useState('')
@@ -33,6 +34,23 @@ export default function Register() {
     }
   }
 
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setError('')
+    setLoading(true)
+    try {
+      const res = await googleLogin(credentialResponse.credential)
+      navigate(res.user?.profile_completed ? '/dashboard' : '/onboarding')
+    } catch (err) {
+      setError(err.response?.data?.error || err.response?.data?.message || 'Google signup failed.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleGoogleError = () => {
+    setError('Google signup failed.')
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/10 flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-md">
@@ -49,6 +67,21 @@ export default function Register() {
               {error}
             </div>
           )}
+
+          <div className="flex justify-center mb-6">
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={handleGoogleError}
+              shape="pill"
+              text="signup_with"
+            />
+          </div>
+
+          <div className="flex items-center gap-3 mb-6">
+            <div className="flex-1 h-px bg-gray-200" />
+            <span className="text-xs text-gray-400 font-body">or create an account with email</span>
+            <div className="flex-1 h-px bg-gray-200" />
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>

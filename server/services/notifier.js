@@ -1,7 +1,18 @@
 // server/services/notifier.js
 
 const nodemailer = require('nodemailer');
+const twilio = require('twilio');
 const pool = require('../config/db');
+
+// ── Twilio Client ─────────────────────────────
+let twilioClient = null;
+if (process.env.TWILIO_SID && process.env.TWILIO_TOKEN) {
+    try {
+        twilioClient = twilio(process.env.TWILIO_SID, process.env.TWILIO_TOKEN);
+    } catch (err) {
+        console.error('[NOTIFIER] Twilio init error:', err.message);
+    }
+}
 
 // ── Email Transporter ─────────────────────────
 const transporter = nodemailer.createTransport({
@@ -355,8 +366,67 @@ const sendDailySummaryEmail = async (userId, summary) => {
     }
 };
 
+// ==============================================
+// Send Alert SMS to Farmer
+// ==============================================
+const sendAlertSMS = async (userId, alerts) => {
+    try {
+        if (!twilioClient) {
+            console.log('[NOTIFIER] Twilio not configured. Skipping SMS.');
+            return;
+        }
+
+        // Get user phone and preferences
+        const userResult = await pool.query(
+            `SELECT u.phone, np.sms_alerts, np.alert_types
+             FROM users u
+             JOIN notification_preferences np ON np.user_id = u.id
+             WHERE u.id = $1`,
+            [userId]
+        );
+
+        if (userResult.rows.length === 0) return;
+        const user = userResult.rows[0];
+
+        // Ensure user enabled SMS and has a valid phone number. We ignore placeholders like '0000000000'.
+        if (!user.sms_alerts || !user.phone || user.phone === '0000000000') {
+            console.log(`[NOTIFIER] SMS alerts disabled or phone invalid for user ${userId}`);
+            return;
+        }
+
+        // Filter alerts by user preferences
+        const userAlertTypes = (user.alert_types || '').split(',');
+        const filteredAlerts = alerts.filter(a => userAlertTypes.includes(a.alert_type));
+
+        if (filteredAlerts.length === 0) return;
+
+        const alertTitles = filteredAlerts.map(a => `- ${a.title}`).join('\n');
+        const messageText = `FarmSense AI: You have ${filteredAlerts.length} new alert(s):\n${alertTitles}\nCheck app for details.`;
+
+        await twilioClient.messages.create({
+            body: messageText,
+            from: process.env.TWILIO_PHONE,
+            to: user.phone
+        });
+
+        console.log(`[NOTIFIER] Alert SMS sent to ${user.phone}`);
+
+        // Update is_sent_sms in alerts table
+        const alertIds = filteredAlerts.map(a => a.id).filter(Boolean);
+        if (alertIds.length > 0) {
+            await pool.query(
+                `UPDATE alerts SET is_sent_sms = TRUE WHERE id = ANY($1)`,
+                [alertIds]
+            );
+        }
+    } catch (err) {
+        console.error('[NOTIFIER] SMS error:', err.message);
+    }
+};
+
 module.exports = {
     sendAlertEmail,
+    sendAlertSMS,
     sendVerificationEmail,
     sendDailySummaryEmail,
 };

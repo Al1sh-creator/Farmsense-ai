@@ -1,26 +1,39 @@
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useTranslation } from 'react-i18next'
 import { useSocket } from '../context/SocketContext'
 import SidebarWeather from './SidebarWeather'
 
-const LINKS = [
-  { icon: '🏠', label: 'Dashboard',       to: '/dashboard'       },
-  { icon: '🔔', label: 'Alerts',          to: '/alerts'          },
-  { icon: '💡', label: 'Suggestions',     to: '/suggestions'     },
-  { icon: '🌾', label: 'Crop Comparison', to: '/crop-comparison' },
-  { icon: '🚜', label: 'Farm Profile',    to: '/farm-profile'    },
-  { icon: '🌤️', label: 'Weather',         to: '/weather'         },
-  { icon: '🏛️', label: 'Govt Schemes',    to: '/schemes'         },
-  { icon: '🌿', label: 'Disease Detection', to: '/disease-detection' },
-  { icon: '⚙️', label: 'Settings',        to: '/settings'        },
-]
-
 export default function Sidebar() {
-  const { user, isDemo } = useAuth()
-  const { liveAlerts }   = useSocket() || {}
-  const unread           = liveAlerts?.length || 0
-  const location         = useLocation()
-  const isWeatherPage    = location.pathname === '/weather'
+  const { user, isDemo, logout } = useAuth()
+  const { t } = useTranslation()
+  const navigate = useNavigate()
+  const { liveAlerts } = useSocket() || {}
+  const unread = liveAlerts?.length || 0
+  const location = useLocation()
+  const isWeatherPage = location.pathname === '/weather'
+
+  const links = [
+    { name: t('sidebar.dashboard'), icon: '🏠', path: '/dashboard' },
+    { name: t('sidebar.alerts'), icon: '🔔', path: '/alerts' },
+    { name: t('sidebar.suggestions'), icon: '💡', path: '/suggestions' },
+    { name: t('sidebar.crop_comparison'), icon: '🌾', path: '/crop-comparison' },
+    { name: t('sidebar.farm_profile'), icon: '🚜', path: '/farm-profile' },
+    { name: t('sidebar.weather'), icon: '🌤️', path: '/weather' },
+    { name: t('sidebar.govt_schemes'), icon: '🏛️', path: '/schemes' },
+    { name: t('sidebar.disease_detection'), icon: '🌿', path: '/disease-detection' },
+  ]
+
+  if (user?.is_admin) {
+    links.push({ name: t('sidebar.admin_panel'), icon: '🛡️', path: '/admin' })
+  }
+
+  links.push({ name: t('sidebar.settings'), icon: '⚙️', path: '/settings' })
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login')
+  }
 
   return (
     <aside className="hidden lg:flex flex-col w-60 min-h-screen bg-white border-r border-gray-100 py-5">
@@ -33,17 +46,17 @@ export default function Sidebar() {
 
       {/* Nav links */}
       <nav className="flex flex-col gap-0.5 px-3">
-        {LINKS.map(({ icon, label, to }) => (
+        {links.map(({ icon, name, path }) => (
           <NavLink
-            key={to}
-            to={to}
+            key={path}
+            to={path}
             className={({ isActive }) =>
               `sidebar-link ${isActive ? 'active' : ''}`
             }
           >
             <span className="text-base">{icon}</span>
-            <span className="flex-1">{label}</span>
-            {label === 'Alerts' && unread > 0 && (
+            <span className="flex-1">{name}</span>
+            {name === t('sidebar.alerts') && unread > 0 && (
               <span className="bg-red-500 text-white text-[10px] rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
                 {unread}
               </span>
@@ -59,11 +72,21 @@ export default function Sidebar() {
 
       {/* Demo placeholder */}
       {isDemo && (
-        <div className="mt-auto border-t border-gray-100 px-4 pt-3 pb-4">
-          <p className="text-[10px] text-amber-600 font-body uppercase tracking-wide mb-1">🧪 Demo Mode</p>
-          <p className="text-xs text-gray-400">Showing Ramesh Patel's farm data</p>
+        <div className="mx-4 mt-auto mb-4 bg-amber-50/50 border border-amber-100 rounded-xl p-3">
+          <p className="text-[10px] text-amber-700 font-semibold uppercase tracking-wider mb-1">{t('sidebar.demo_mode')}</p>
+          <p className="text-xs text-amber-600/80 font-body">Viewing read-only sample farm data.</p>
         </div>
       )}
+
+      <div className="p-4 mt-auto border-t border-gray-100">
+        <button 
+          onClick={handleLogout}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors text-sm font-medium group"
+        >
+          <span className="text-xl grayscale group-hover:grayscale-0">🚪</span>
+          {t('sidebar.logout')}
+        </button>
+      </div>
     </aside>
   )
 }

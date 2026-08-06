@@ -2,7 +2,7 @@
 
 const cron = require('node-cron');
 const pool = require('../config/db');
-const { sendAlertEmail, sendDailySummaryEmail } = require('./notifier');
+const { sendAlertEmail, sendAlertSMS, sendDailySummaryEmail } = require('./notifier');
 
 // ── Helper: Generate Alerts from Forecast ─────
 // Same logic as weather route but saves to DB
@@ -334,7 +334,7 @@ const runDailyJob = async () => {
                 );
             }
 
-            // 4. Send email notifications
+            // 4. Send email & SMS notifications
             if (alerts.length > 0) {
                 // Get saved alert ids
                 const savedAlerts = await pool.query(
@@ -346,6 +346,7 @@ const runDailyJob = async () => {
                 );
 
                 await sendAlertEmail(farm.user_id, savedAlerts.rows);
+                await sendAlertSMS(farm.user_id, savedAlerts.rows);
             }
 
             // 5. Send daily summary

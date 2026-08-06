@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
-import { login as loginApi, register as registerApi, getMe } from '../api/authApi'
+import { login as loginApi, register as registerApi, googleLogin as googleLoginApi, getMe } from '../api/authApi'
 import { MOCK_USER } from '../mock/mockData'
 
 const AuthContext = createContext(null)
@@ -50,10 +50,21 @@ export function AuthProvider({ children }) {
     setUser(res.data.user)
     return res.data
   }, [])
+
+  const googleLogin = useCallback(async (credential) => {
+    const res = await googleLoginApi({ credential })
+    localStorage.setItem('token', res.data.token)
+    setUser(res.data.user)
+    return res.data
+  }, [])
   // Demo login — sets a fake token, no API call
   const demoLogin = useCallback(() => {
     localStorage.setItem('token', DEMO_TOKEN)
     setUser(MOCK_USER)
+  }, [])
+
+  const updateUser = useCallback((updates) => {
+    setUser((prev) => ({ ...prev, ...updates }))
   }, [])
 
   const logout = useCallback(() => {
@@ -64,7 +75,7 @@ export function AuthProvider({ children }) {
   const isDemo = localStorage.getItem('token') === DEMO_TOKEN
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, demoLogin, isDemo }}>
+    <AuthContext.Provider value={{ user, loading, login, register, googleLogin, logout, demoLogin, isDemo, updateUser }}>
       {children}
     </AuthContext.Provider>
   )

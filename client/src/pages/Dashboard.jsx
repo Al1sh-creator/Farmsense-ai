@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import Sidebar from '../components/Sidebar'
 import Navbar from '../components/Navbar'
 import StatCard from '../components/StatCard'
@@ -14,10 +15,11 @@ import { getAlerts } from '../api/alertApi'
 import { getSuggestions } from '../api/suggestionApi'
 import { runAIAnalysis, getLatestAnalysis } from '../api/analysisApi'
 import {
-  MOCK_FARM, MOCK_WEATHER, MOCK_ALERTS, MOCK_SUGGESTIONS
+  MOCK_ALERTS, MOCK_FARM, MOCK_SUGGESTIONS
 } from '../mock/mockData'
 
 export default function Dashboard() {
+  const { t } = useTranslation()
   const { user, isDemo } = useAuth()
   const { liveAlerts, dismissAlert } = useSocket() || {}
   const [farm, setFarm]             = useState(null)
@@ -158,12 +160,10 @@ export default function Dashboard() {
           <div className="mb-6 flex items-center justify-between">
             <div>
               <h1 className="font-heading font-bold text-2xl text-gray-900">
-                {loading ? '…' : `${farm?.farm_name || 'Your Farm'} Dashboard`}
+                {t('dashboard.title')}
               </h1>
-              <p className="text-sm text-gray-500 font-body mt-0.5">
-                {farm
-                  ? [farm.village, farm.district, farm.state].filter(Boolean).join(', ')
-                  : 'Loading farm info…'}
+              <p className="text-sm text-gray-500 font-body mt-1">
+                {t('dashboard.subtitle')}
               </p>
             </div>
             {!isDemo && !loading && profileComplete && (
@@ -215,7 +215,7 @@ export default function Dashboard() {
             {/* Alerts */}
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h2 className="font-heading font-semibold text-gray-800">Recent Alerts</h2>
+                <h2 className="font-heading font-semibold text-gray-800">{t('dashboard.recent_alerts')}</h2>
                 <a href="/alerts" className="text-xs text-primary hover:underline font-body">View all →</a>
               </div>
               {loading ? (
@@ -237,7 +237,7 @@ export default function Dashboard() {
               ) : (
                 <div className="card text-center py-10">
                   <span className="text-4xl">✅</span>
-                  <p className="text-sm text-gray-500 mt-2 font-body">No active alerts!</p>
+                  <p className="text-sm text-gray-500 mt-2 font-body">{t('dashboard.no_alerts')}</p>
                 </div>
               )}
             </div>
@@ -245,7 +245,7 @@ export default function Dashboard() {
             {/* Suggestions */}
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h2 className="font-heading font-semibold text-gray-800">AI Suggestions</h2>
+                <h2 className="font-heading font-semibold text-gray-800">{t('dashboard.ai_suggestions')}</h2>
                 <a href="/suggestions" className="text-xs text-primary hover:underline font-body">View all →</a>
               </div>
               {loading ? (

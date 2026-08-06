@@ -4,6 +4,7 @@ import Navbar from '../components/Navbar'
 import FieldCard from '../components/FieldCard'
 import { useAuth } from '../context/AuthContext'
 import { getMyFarm, addField, updateField, deleteField, getFields, updateSoilProfile } from '../api/farmApi'
+import { requestInspection, getMyInspections } from '../api/inspectionApi'
 import { MOCK_FARM } from '../mock/mockData'
 
 const SOIL_TYPES  = ['Black', 'Red', 'Alluvial', 'Laterite', 'Sandy', 'Loamy', 'Clayey']
@@ -123,7 +124,7 @@ function FieldModal({ field, onClose, onSave, farmId, isDemo, maxArea }) {
   )
 }
 
-function SoilProfileSection({ farm, onUpdated, isDemo }) {
+function SoilProfileSection({ farm, onUpdated, isDemo, onShowInspectionModal }) {
   const hasSoil = farm?.npk_nitrogen && farm?.npk_phosphorus && farm?.npk_potassium && farm?.ph_level
   const [editing, setEditing] = useState(false)
   const [saving, setSaving]   = useState(false)
@@ -172,12 +173,20 @@ function SoilProfileSection({ farm, onUpdated, isDemo }) {
           )}
         </div>
         {!isDemo && (
-          <button
-            onClick={() => { setEditing(e => !e); setError('') }}
-            className="text-xs text-primary hover:underline font-medium"
-          >
-            {editing ? 'Cancel' : hasSoil ? 'Edit' : 'Add Values'}
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => onShowInspectionModal()}
+              className="text-xs text-blue-600 hover:bg-blue-50 px-2 py-1 rounded-md font-medium transition-colors"
+            >
+              📅 Request Inspection
+            </button>
+            <button
+              onClick={() => { setEditing(e => !e); setError('') }}
+              className="text-xs text-primary hover:bg-primary/5 px-2 py-1 rounded-md font-medium transition-colors"
+            >
+              {editing ? 'Cancel' : hasSoil ? 'Edit Manually' : 'Enter Manually'}
+            </button>
+          </div>
         )}
       </div>
 
@@ -269,8 +278,10 @@ export default function FarmProfile() {
   const { isDemo }    = useAuth()
   const [farm, setFarm]     = useState(null)
   const [fields, setFields] = useState([])
+  const [inspections, setInspections] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal]   = useState(null)
+  const [inspectionModal, setInspectionModal] = useState(false)
 
   const reload = () => {
     setLoading(true)
@@ -285,7 +296,11 @@ export default function FarmProfile() {
         setFarm(res.data.farm)
         return getFields(res.data.farm?.id)
       })
-      .then((res) => setFields(res.data.fields || []))
+      .then((res) => {
+        setFields(res.data.fields || [])
+        return getMyInspections()
+      })
+      .then((res) => setInspections(res.data.inspections || []))
       .catch(console.error)
       .finally(() => setLoading(false))
   }
@@ -366,7 +381,43 @@ export default function FarmProfile() {
               </div>
 
               {/* Soil Profile Section */}
-              <SoilProfileSection farm={farm} onUpdated={reload} isDemo={isDemo} />
+              <SoilProfileSection 
+                farm={farm} 
+                onUpdated={reload} 
+                isDemo={isDemo} 
+                onShowInspectionModal={() => setInspectionModal(true)} 
+              />
+
+              {/* Inspections List */}
+              {inspections.length > 0 && (
+                <div className="card mb-6">
+                  <h3 className="font-heading font-semibold text-gray-800 mb-3">Service Requests</h3>
+                  <div className="space-y-3">
+                    {inspections.map(insp => (
+                      <div key={insp.id} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-100">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-800">
+                            Soil Inspection 
+                            <span className="text-xs text-gray-400 font-normal ml-2">
+                              Requested for {new Date(insp.preferred_date).toLocaleDateString()}
+                            </span>
+                          </p>
+                          {insp.notes && <p className="text-xs text-gray-500 mt-0.5">Note: {insp.notes}</p>}
+                        </div>
+                        <div>
+                          <span className={`text-xs px-2 py-1 rounded-full font-semibold ${
+                            insp.status === 'completed' ? 'bg-green-100 text-green-700' :
+                            insp.status === 'scheduled' ? 'bg-blue-100 text-blue-700' :
+                            'bg-amber-100 text-amber-700'
+                          }`}>
+                            {insp.status.toUpperCase()}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </>
           )}
 
@@ -405,6 +456,107 @@ export default function FarmProfile() {
           onSave={() => { setModal(null); reload() }}
         />
       )}
+
+      {inspectionModal && (
+        <InspectionModal
+          onClose={() => setInspectionModal(false)}
+          onSave={() => { setInspectionModal(false); reload() }}
+        />
+      )}
+    </div>
+  )
+}
+
+function InspectionModal({ onClose, onSave }) {
+  const [step, setStep] = useState(1)
+  const [date, setDate] = useState('')
+  const [notes, setNotes] = useState('')
+  const [loading, setLoading] = useState(false)
+  
+  const handleNext = () => {
+    if(!date) return alert('Please select a date.')
+    setStep(2)
+  }
+
+  const handleSubmit = async () => {
+    setLoading(true)
+    try {
+      await requestInspection({ preferred_date: date, notes })
+      onSave()
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to request inspection.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const today = new Date().toISOString().split('T')[0]
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-3xl shadow-2xl p-6 w-full max-w-md animate-slide-up">
+        {step === 1 ? (
+          <>
+            <h3 className="font-heading font-bold text-lg text-gray-900 mb-2">Request Soil Inspection</h3>
+            <p className="text-sm text-gray-500 mb-4">Our agronomy team will visit your farm to conduct a professional soil analysis.</p>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="label">Preferred Visit Date</label>
+                <input 
+                  type="date" 
+                  className="input-field" 
+                  min={today}
+                  value={date} 
+                  onChange={e => setDate(e.target.value)} 
+                />
+              </div>
+              <div>
+                <label className="label">Additional Notes (Optional)</label>
+                <textarea 
+                  className="input-field" 
+                  rows="3" 
+                  placeholder="E.g., Suspecting low nitrogen in the north field."
+                  value={notes}
+                  onChange={e => setNotes(e.target.value)}
+                ></textarea>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button onClick={onClose} className="btn-outline flex-1">Cancel</button>
+              <button onClick={handleNext} className="btn-primary flex-1">Next</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <h3 className="font-heading font-bold text-lg text-gray-900 mb-2">Confirm Booking</h3>
+            <p className="text-sm text-gray-500 mb-4">Review the details and confirm your request. An invoice will be sent to your email.</p>
+            
+            <div className="bg-gray-50 rounded-xl p-4 space-y-3 text-sm">
+              <div className="flex justify-between border-b border-gray-200 pb-2">
+                <span className="text-gray-500">Service:</span>
+                <span className="font-medium text-gray-900">Professional Soil Test</span>
+              </div>
+              <div className="flex justify-between border-b border-gray-200 pb-2">
+                <span className="text-gray-500">Preferred Date:</span>
+                <span className="font-medium text-gray-900">{new Date(date).toLocaleDateString()}</span>
+              </div>
+              <div className="flex justify-between pt-1">
+                <span className="text-gray-500 font-semibold">Total Amount:</span>
+                <span className="font-bold text-green-700 text-lg">₹500</span>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setStep(1)} disabled={loading} className="btn-outline flex-1">Back</button>
+              <button onClick={handleSubmit} disabled={loading} className="btn-primary flex-1 bg-green-600 hover:bg-green-700 text-white border-0 shadow-lg shadow-green-600/30">
+                {loading ? 'Processing...' : 'Confirm & Pay ₹500'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   )
 }

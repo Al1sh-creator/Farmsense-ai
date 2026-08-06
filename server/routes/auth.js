@@ -15,6 +15,8 @@ const {
     sendPasswordResetEmail,
     sendWelcomeEmail,
 } = require('../services/emailService');
+const { OAuth2Client } = require('google-auth-library');
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 
 // ── Helper: Get Device Info ───────────────────
@@ -186,7 +188,7 @@ router.post('/login', [
         const result = await pool.query(
             `SELECT id, name, email, phone, password,
                     profile_completed, is_email_verified,
-                    preferred_language
+                    preferred_language, is_admin
              FROM users WHERE email = $1`,
             [email]
         );
@@ -254,11 +256,92 @@ router.post('/login', [
                 profile_completed: user.profile_completed,
                 is_email_verified: user.is_email_verified,
                 preferred_language: user.preferred_language,
+                is_admin: user.is_admin,
             }
         });
 
     } catch (err) {
         next(err);
+    }
+});
+
+// ==============================================
+// POST /api/auth/google
+// ==============================================
+router.post('/google', async (req, res, next) => {
+    try {
+        const { credential } = req.body;
+        if (!credential) {
+            return res.status(400).json({ success: false, error: 'Google credential missing' });
+        }
+
+        const ticket = await googleClient.verifyIdToken({
+            idToken: credential,
+            audience: process.env.GOOGLE_CLIENT_ID
+        });
+
+        const payload = ticket.getPayload();
+        const { email, name } = payload;
+        const deviceInfo = getDeviceInfo(req);
+
+        // Check if user exists
+        const result = await pool.query(
+            `SELECT id, name, email, phone, password, profile_completed, is_email_verified, preferred_language, is_admin
+             FROM users WHERE email = $1`,
+            [email]
+        );
+
+        let user;
+        if (result.rows.length === 0) {
+            // Register new user with Google Auth
+            const newUser = await pool.query(
+                `INSERT INTO users (name, email, phone, password, is_email_verified)
+                 VALUES ($1, $2, $3, $4, TRUE) RETURNING id`,
+                [name, email, '0000000000', 'google_oauth_no_password']
+            );
+            
+            // Set default notifications
+            await pool.query(
+                `INSERT INTO notification_preferences (user_id, email_alerts, sms_alerts)
+                 VALUES ($1, TRUE, FALSE)`,
+                [newUser.rows[0].id]
+            );
+
+            // Re-fetch created user
+            const fetched = await pool.query('SELECT * FROM users WHERE id = $1', [newUser.rows[0].id]);
+            user = fetched.rows[0];
+        } else {
+            user = result.rows[0];
+        }
+
+        // Log successful login
+        const loginRecord = await pool.query(
+            `INSERT INTO login_history (user_id, ip_address, device_type, browser, operating_system, login_status)
+             VALUES ($1, $2, $3, $4, $5, 'success') RETURNING id`,
+            [user.id, deviceInfo.ip, deviceInfo.device_type, deviceInfo.browser, deviceInfo.os]
+        );
+
+        const token = generateToken(user.id, loginRecord.rows[0].id);
+
+        res.json({
+            success: true,
+            message: 'Google Login successful',
+            token,
+            user: {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                phone: user.phone,
+                profile_completed: user.profile_completed,
+                is_email_verified: user.is_email_verified,
+                preferred_language: user.preferred_language,
+                is_admin: user.is_admin,
+            }
+        });
+
+    } catch (err) {
+        console.error('[GOOGLE AUTH ERROR]:', err.message);
+        return res.status(401).json({ success: false, error: 'Invalid Google Token' });
     }
 });
 
@@ -277,6 +360,7 @@ router.get('/me', auth, async (req, res, next) => {
                 u.profile_completed,
                 u.is_email_verified,
                 u.created_at,
+                u.is_admin,
                 f.id           AS farm_id,
                 f.farm_name,
                 f.state,
@@ -310,6 +394,7 @@ router.get('/me', auth, async (req, res, next) => {
                 profile_completed: data.profile_completed,
                 is_email_verified: data.is_email_verified,
                 member_since: data.created_at,
+                is_admin: data.is_admin,
             },
             farm: data.farm_id ? {
                 id: data.farm_id,
@@ -445,6 +530,41 @@ router.post('/resend-verification', auth, async (req, res, next) => {
             });
         }
 
+    } catch (err) {
+        next(err);
+    }
+});
+
+// ==============================================
+// PUT /api/auth/phone
+// ==============================================
+router.put('/phone', auth, [
+    body('phone').trim().notEmpty().withMessage('Phone number is required')
+        .isLength({ min: 10, max: 15 }).withMessage('Phone must be 10-15 digits')
+], async (req, res, next) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ success: false, error: errors.array()[0].msg });
+        }
+
+        const { phone } = req.body;
+
+        // Ensure the phone number isn't already used by another account (excluding the placeholder '0000000000')
+        if (phone !== '0000000000') {
+            const existing = await pool.query('SELECT id FROM users WHERE phone = $1 AND id != $2', [phone, req.user.id]);
+            if (existing.rows.length > 0) {
+                return res.status(400).json({ success: false, error: 'Phone number already registered to another account' });
+            }
+        }
+
+        await pool.query('UPDATE users SET phone = $1 WHERE id = $2', [phone, req.user.id]);
+
+        res.json({
+            success: true,
+            message: 'Phone number updated successfully',
+            phone
+        });
     } catch (err) {
         next(err);
     }
@@ -612,6 +732,110 @@ router.post('/reset-password', [
 
     } catch (err) {
         next(err);
+    }
+});
+
+// ==============================================
+// POST /api/auth/google
+// ==============================================
+router.post('/google', async (req, res, next) => {
+    try {
+        const { credential } = req.body;
+        if (!credential) {
+            return res.status(400).json({ success: false, error: 'Token is required' });
+        }
+
+        const ticket = await googleClient.verifyIdToken({
+            idToken: credential,
+            audience: process.env.GOOGLE_CLIENT_ID,
+        });
+
+        const payload = ticket.getPayload();
+        const { email, name, sub: googleId } = payload;
+        
+        const deviceInfo = getDeviceInfo(req);
+
+        // Check if user exists
+        let result = await pool.query(
+            `SELECT id, name, email, phone, password,
+                    profile_completed, is_email_verified,
+                    preferred_language
+             FROM users WHERE email = $1`,
+            [email]
+        );
+
+        let user;
+
+        if (result.rows.length === 0) {
+            // Create user
+            const randomPassword = crypto.randomBytes(16).toString('hex');
+            const salt = await bcrypt.genSalt(12);
+            const hashedPassword = await bcrypt.hash(randomPassword, salt);
+            const verifyToken = crypto.randomBytes(32).toString('hex');
+            const verifyExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+            
+            // Note: Assuming phone is required but we don't have it, we insert a placeholder.
+            // If the schema allows null, we could insert null. We'll use a placeholder string.
+            const placeholderPhone = '0000000000';
+
+            const insertResult = await pool.query(
+                `INSERT INTO users
+                 (name, email, phone, password,
+                  email_verify_token, email_verify_expires, is_email_verified)
+                 VALUES ($1, $2, $3, $4, $5, $6, true)
+                 RETURNING id, name, email, phone, profile_completed, is_email_verified, preferred_language`,
+                [name, email, placeholderPhone, hashedPassword, verifyToken, verifyExpires]
+            );
+            user = insertResult.rows[0];
+
+            await pool.query(
+                `INSERT INTO notification_preferences (user_id)
+                 VALUES ($1)`,
+                [user.id]
+            );
+        } else {
+            user = result.rows[0];
+            // If the user hasn't verified their email, we can mark it as verified since Google verified it
+            if (!user.is_email_verified) {
+                await pool.query(
+                    `UPDATE users SET is_email_verified = true WHERE id = $1`,
+                    [user.id]
+                );
+                user.is_email_verified = true;
+            }
+        }
+
+        // Log successful login
+        const loginRecord = await pool.query(
+            `INSERT INTO login_history
+             (user_id, ip_address, device_type, browser,
+              operating_system, login_status)
+             VALUES ($1, $2, $3, $4, $5, 'success')
+             RETURNING id`,
+            [user.id, deviceInfo.ip, deviceInfo.device_type,
+            deviceInfo.browser, deviceInfo.os]
+        );
+
+        const token = generateToken(user.id, loginRecord.rows[0].id);
+
+        res.json({
+            success: true,
+            message: 'Login successful',
+            token,
+            user: {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                phone: user.phone,
+                profile_completed: user.profile_completed,
+                is_email_verified: user.is_email_verified,
+                preferred_language: user.preferred_language,
+            }
+        });
+
+    } catch (err) {
+        console.error('Google Auth Error:', err);
+        res.status(401).json({ success: false, error: 'Google login failed' });
     }
 });
 

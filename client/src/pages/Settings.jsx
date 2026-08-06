@@ -3,13 +3,18 @@ import Sidebar from '../components/Sidebar'
 import Navbar from '../components/Navbar'
 import api from '../api/apiClient'
 import { useAuth } from '../context/AuthContext'
+import { updatePhone } from '../api/authApi'
 
 export default function Settings() {
-  const { user } = useAuth()
-  const [prefs, setPrefs]       = useState({ email_alerts: true, sms_alerts: false, alert_types: ['weather', 'pest', 'irrigation', 'harvest'] })
+  const { user, updateUser } = useAuth()
+  const [prefs, setPrefs]       = useState({ email_alerts: true, sms_alerts: false, alert_types: ['heavy_rain', 'heatwave', 'drought_risk', 'frost_risk', 'strong_wind', 'fungal_risk', 'good_sowing_window', 'irrigation_needed'] })
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState(false)
   const [saved, setSaved]       = useState(false)
+  
+  const [editingPhone, setEditingPhone] = useState(false)
+  const [phoneInput, setPhoneInput] = useState('')
+  const [savingPhone, setSavingPhone] = useState(false)
 
   useEffect(() => {
     api.get('/api/notifications/prefs')
@@ -36,16 +41,36 @@ export default function Settings() {
       await api.put('/api/notifications/prefs', prefs)
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to save settings')
     } finally {
       setSaving(false)
     }
   }
 
+  const handleSavePhone = async () => {
+    if (!phoneInput.trim()) return
+    setSavingPhone(true)
+    try {
+      await updatePhone({ phone: phoneInput })
+      updateUser({ phone: phoneInput })
+      setEditingPhone(false)
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to update phone')
+    } finally {
+      setSavingPhone(false)
+    }
+  }
+
   const ALERT_TYPES = [
-    { key: 'weather',    label: 'Weather Alerts',    icon: '🌦️' },
-    { key: 'pest',       label: 'Pest Risk Alerts',  icon: '🐛' },
-    { key: 'irrigation', label: 'Irrigation Alerts', icon: '💧' },
-    { key: 'harvest',    label: 'Harvest Alerts',    icon: '🌾' },
+    { key: 'heavy_rain',         label: 'Heavy Rain Alerts',      icon: '🌧️' },
+    { key: 'heatwave',           label: 'Heatwave Alerts',        icon: '🔥' },
+    { key: 'drought_risk',       label: 'Drought Risk Alerts',    icon: '🏜️' },
+    { key: 'frost_risk',         label: 'Frost Risk Alerts',      icon: '❄️' },
+    { key: 'strong_wind',        label: 'Strong Wind Alerts',     icon: '💨' },
+    { key: 'fungal_risk',        label: 'Fungal Disease Alerts',  icon: '🍄' },
+    { key: 'good_sowing_window', label: 'Good Sowing Window',     icon: '🌱' },
+    { key: 'irrigation_needed',  label: 'Irrigation Needed',      icon: '💧' },
   ]
 
   return (
@@ -73,7 +98,31 @@ export default function Settings() {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-500 font-body">Phone</span>
-                <span className="text-sm font-medium text-gray-800 font-body">{user?.phone || '—'}</span>
+                {editingPhone ? (
+                  <div className="flex items-center gap-3">
+                    <input 
+                      type="tel"
+                      className="input-field py-1 px-2 text-sm max-w-[150px]" 
+                      value={phoneInput} 
+                      onChange={(e) => setPhoneInput(e.target.value)}
+                      placeholder="Phone number"
+                    />
+                    <button onClick={handleSavePhone} disabled={savingPhone} className="text-primary text-sm font-medium hover:underline">
+                      {savingPhone ? 'Saving...' : 'Save'}
+                    </button>
+                    <button onClick={() => setEditingPhone(false)} className="text-gray-400 text-sm hover:underline">Cancel</button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium text-gray-800 font-body">{user?.phone === '0000000000' ? 'Not set' : (user?.phone || '—')}</span>
+                    <button 
+                      onClick={() => { setEditingPhone(true); setPhoneInput(user?.phone === '0000000000' ? '' : (user?.phone || '')); }} 
+                      className="text-xs text-primary hover:underline bg-primary/10 px-2 py-1 rounded"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -89,6 +138,7 @@ export default function Settings() {
               <div className="space-y-3">
                 {[
                   { key: 'email_alerts', label: 'Email Notifications', icon: '📧', desc: `Alerts sent to ${user?.email}` },
+                  { key: 'sms_alerts', label: 'SMS Notifications', icon: '📱', desc: `Alerts sent to ${user?.phone === '0000000000' ? 'Not set' : (user?.phone || 'Not set')}` },
                 ].map(({ key, label, icon, desc }) => (
                   <div key={key} className="flex items-center justify-between p-4 rounded-xl bg-background">
                     <div className="flex items-center gap-3">

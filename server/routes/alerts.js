@@ -6,6 +6,7 @@ const axios = require('axios');
 const pool = require('../config/db');
 const { auth, requireProfile } = require('../middleware/auth');
 const { AppError } = require('../middleware/errorHandler');
+const { sendAlertEmail, sendAlertSMS } = require('../services/notifier');
 
 // ==============================================
 // GET /api/alerts
@@ -343,12 +344,21 @@ router.post('/demo', auth, async (req, res, next) => {
         }
 
         // 4. Insert alerts into DB
+        const savedAlerts = [];
         for (const alert of alertsToInsert) {
-            await pool.query(
+            const resAlert = await pool.query(
                 `INSERT INTO alerts (farm_id, alert_type, severity, title, message, alert_date, is_read)
-                 VALUES ($1, $2, $3, $4, $5, $6, FALSE)`,
+                 VALUES ($1, $2, $3, $4, $5, $6, FALSE) RETURNING id, alert_type, severity, title, message`,
                 [farm.id, alert.type, alert.severity, alert.title, alert.message, alert.date]
             );
+            savedAlerts.push(resAlert.rows[0]);
+        }
+
+        // Trigger SMS and Email Notifications
+        if (savedAlerts.length > 0) {
+            // These run concurrently without blocking the response
+            sendAlertEmail(req.user.id, savedAlerts).catch(console.error);
+            sendAlertSMS(req.user.id, savedAlerts).catch(console.error);
         }
 
         // 5. Fire Socket.IO event for the first critical alert

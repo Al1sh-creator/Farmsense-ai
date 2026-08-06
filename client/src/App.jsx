@@ -18,6 +18,7 @@ import Settings from './pages/Settings'
 import Weather from './pages/Weather'
 import GovSchemes from './pages/GovSchemes'
 import DiseaseDetection from './pages/DiseaseDetection'
+import AdminDashboard from './pages/AdminDashboard'
 
 export default function App() {
   return (
@@ -43,6 +44,7 @@ export default function App() {
             <Route path="/schemes"         element={<ProtectedRoute><GovSchemes /></ProtectedRoute>} />
             <Route path="/settings"        element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/disease-detection" element={<ProtectedRoute><DiseaseDetection /></ProtectedRoute>} />
+            <Route path="/admin"           element={<ProtectedRoute adminOnly={true}><AdminDashboard /></ProtectedRoute>} />
 
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />

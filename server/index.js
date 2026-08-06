@@ -62,6 +62,8 @@ app.get('/api/weather/test', (req, res) => {
 });
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/disease',       require('./routes/disease'));
+app.use('/api/admin',         require('./routes/admin'));
+app.use('/api/inspections',   require('./routes/inspections'));
 
 // ── Health Check ──────────────────────────────
 app.get('/health', (req, res) => {

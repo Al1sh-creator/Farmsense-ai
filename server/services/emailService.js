@@ -150,9 +150,37 @@ const sendWelcomeEmail = async (email, name) => {
     });
 };
 
+// ── 5. Inspection Invoice Email ───────────────
+const sendInspectionInvoiceEmail = async (email, name, pdfBuffer) => {
+    await transporter.sendMail({
+        from: `"FarmSense AI" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: '🧾 Your Soil Inspection Booking & Invoice',
+        html: emailWrapper(`
+            <h2 style="color: #2D6A4F;">Booking Confirmed, ${name}!</h2>
+            <p style="color: #444; line-height: 1.6;">
+                Thank you for booking a professional Soil Inspection with FarmSense AI.
+                We have received your payment of <strong>₹500</strong>.
+            </p>
+            <p style="color: #444; line-height: 1.6;">
+                Please find your official invoice attached to this email as a PDF.
+                Our agronomy team will contact you shortly to finalize the exact time of the visit.
+            </p>
+        `),
+        attachments: [
+            {
+                filename: 'FarmSense_Invoice.pdf',
+                content: pdfBuffer,
+                contentType: 'application/pdf'
+            }
+        ]
+    });
+};
+
 module.exports = {
     sendVerificationEmail,
     sendPasswordResetEmail,
     sendTestEmail,
     sendWelcomeEmail,
+    sendInspectionInvoiceEmail,
 };
