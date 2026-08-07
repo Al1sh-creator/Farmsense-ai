@@ -6,6 +6,93 @@ const pool = require('../config/db');
 const { auth, requireProfile } = require('../middleware/auth');
 const { AppError } = require('../middleware/errorHandler');
 
+// ── Crop Market Price Lookup ──────────────────
+// Returns estimated market price (₹/quintal) for a given crop name
+// Based on average modal prices from price_agriculture_cleaned.csv
+const CROP_PRICES = {
+    // Vegetables
+    'bhindi':           4350,  'ladyfinger':       4350,
+    'brinjal':          2450,  'eggplant':         2450,
+    'cabbage':          2700,
+    'cauliflower':      7250,
+    'coriander':        8850,
+    'ginger':           10822,
+    'greenchilli':      7550,  'chilli':           7550,
+    'guar':             7350,
+    'lemon':            2200,
+    'onion':            1800,
+    'tomato':           2500,
+    'potato':           1500,
+    'garlic':           6000,
+    'okra':             4350,
+    // Grains & Cereals
+    'rice':             2500,  'paddy':            2500,
+    'wheat':            2200,
+    'maize':            1900,  'corn':             1900,
+    'jowar':            2800,  'sorghum':          2800,
+    'bajra':            2400,  'millet':           2400,
+    'barley':           1800,
+    // Pulses
+    'moong':            7500,  'greengramme':      7500,
+    'urad':             6500,  'blackgram':        6500,
+    'tur':              6800,  'arhar':            6800,  'pigeonpea':        6800,
+    'chana':            5500,  'chickpea':         5500,
+    'lentil':           5800,  'masur':            5800,
+    // Oilseeds
+    'soybean':          4500,  'soya':             4500,
+    'groundnut':        5500,  'peanut':           5500,
+    'sunflower':        5800,
+    'mustard':          5200,  'rapeseed':         5200,
+    'sesame':           9000,  'til':              9000,
+    'castor':           5000,
+    // Cash Crops
+    'cotton':           7000,
+    'sugarcane':         350,
+    'jute':             4500,
+    'tobacco':          8000,
+    // Fruits
+    'mango':            4000,
+    'banana':           2000,
+    'papaya':           1500,
+    'muskmelon':        2800,  'cantaloupe':       2800,
+    'watermelon':       1200,
+    'pomegranate':      8000,
+    'grapes':           6000,
+};
+
+const getMarketPrice = (cropName) => {
+    if (!cropName) return 0;
+    const key = cropName.toLowerCase().replace(/[\s\-_]/g, '');
+    // Direct match
+    if (CROP_PRICES[key]) return CROP_PRICES[key];
+    // Partial match
+    for (const [k, v] of Object.entries(CROP_PRICES)) {
+        if (key.includes(k) || k.includes(key)) return v;
+    }
+    return 3000; // fallback average
+};
+
+// Input cost estimate per acre (₹)
+const INPUT_COST_PER_ACRE = {
+    'rice': 15000, 'paddy': 15000,
+    'wheat': 12000,
+    'cotton': 20000,
+    'sugarcane': 25000,
+    'soybean': 10000,
+    'groundnut': 14000,
+    'default': 12000,
+};
+
+const getInputCost = (cropName, area) => {
+    if (!cropName || !area) return 0;
+    const key = cropName.toLowerCase().replace(/[\s\-_]/g, '');
+    let costPerAcre = INPUT_COST_PER_ACRE.default;
+    for (const [k, v] of Object.entries(INPUT_COST_PER_ACRE)) {
+        if (key.includes(k) || k.includes(key)) { costPerAcre = v; break; }
+    }
+    return Math.round(costPerAcre * area);
+};
+
 // ==============================================
 // GET /api/analysis/latest
 // Get latest AI analysis result for farm
@@ -169,11 +256,22 @@ router.post('/run', auth, requireProfile, async (req, res, next) => {
             predicted_yield_per_acre:  preds.predicted_yield || 0,
             total_predicted_yield:     (preds.predicted_yield || 0) * farm.farm_area,
             yield_confidence:          'high',
-            market_price_per_quintal:  0, // Would come from price API
-            gross_revenue:             0,
-            total_input_cost:          0,
-            net_profit:                0,
-            roi_percent:               0,
+            market_price_per_quintal:  getMarketPrice(preds.recommended_crop || farm.current_crop),
+            gross_revenue:             Math.round(
+                                         (preds.predicted_yield || 0) * farm.farm_area
+                                         * getMarketPrice(preds.recommended_crop || farm.current_crop) * 10
+                                       ), // yield(t/ha) * area * price/quintal * 10 quintals/tonne
+            total_input_cost:          getInputCost(preds.recommended_crop || farm.current_crop, farm.farm_area),
+            net_profit:                Math.round(
+                                         ((preds.predicted_yield || 0) * farm.farm_area
+                                         * getMarketPrice(preds.recommended_crop || farm.current_crop) * 10)
+                                         - getInputCost(preds.recommended_crop || farm.current_crop, farm.farm_area)
+                                       ),
+            roi_percent:               (() => {
+                                         const rev = Math.round((preds.predicted_yield || 0) * farm.farm_area * getMarketPrice(preds.recommended_crop || farm.current_crop) * 10);
+                                         const cost = getInputCost(preds.recommended_crop || farm.current_crop, farm.farm_area);
+                                         return cost > 0 ? Math.round(((rev - cost) / cost) * 100) : 0;
+                                       })(),
             season:                    farm.current_season,
             weather_snapshot: {
                 temp: weatherForecast?.[0]?.temp_max || 30,
