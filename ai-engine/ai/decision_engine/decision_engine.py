@@ -88,7 +88,7 @@ class DecisionEngine:
         )
 
         # Generate response from LLM
-        print("[AI Module] Asking Ollama (qwen2.5:7b). This may take a minute depending on your hardware...")
+        print("[AI Module] Asking Groq LLM. This should be very fast...")
         response = ollama_service.generate_response(prompt)
         print("[AI Module] Successfully generated AI response!")
 

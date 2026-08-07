@@ -23,6 +23,7 @@ export default function Dashboard() {
   const { user, isDemo } = useAuth()
   const { liveAlerts, dismissAlert } = useSocket() || {}
   const [farm, setFarm]             = useState(null)
+  const [farmStats, setFarmStats]   = useState(null)
   const [forecast, setForecast]     = useState([])
   const [alerts, setAlerts]         = useState([])
   const [suggestions, setSuggestions] = useState([])
@@ -46,6 +47,7 @@ export default function Dashboard() {
     getMyFarm()
       .then((res) => {
         setFarm(res.data.farm)
+        setFarmStats(res.data.stats)
         const id = res.data.farm?.id
         return Promise.all([
           getWeatherForecast(),
@@ -191,7 +193,7 @@ export default function Dashboard() {
               <StatCard title="Active Alerts"   value={loading ? '—' : unreadAlerts}                              icon="🔔" color="danger"    />
               <StatCard title="AI Suggestions"  value={loading ? '—' : suggestions.length}                        icon="💡" color="secondary" />
               <StatCard title="Total Area"      value={loading ? '—' : `${farm?.farm_area || 0}ac`}               icon="🚜" color="primary"   />
-              <StatCard title="Fields"          value={loading ? '—' : (farm?.stats?.total_fields || 0)}          icon="🌱" color="info"      />
+              <StatCard title="Fields"          value={loading ? '—' : (farmStats?.total_fields ?? 0)}          icon="🌱" color="info"      />
             </div>
           )}
 

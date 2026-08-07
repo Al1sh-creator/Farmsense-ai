@@ -6,6 +6,7 @@ const axios = require('axios');
 const pool = require('../config/db');
 const { auth, requireProfile } = require('../middleware/auth');
 const { AppError } = require('../middleware/errorHandler');
+const { sendAlertEmail, sendAlertSMS } = require('../services/notifier');
 
 
 // ── Helper: Fetch 16-day Forecast ────────────
@@ -34,7 +35,6 @@ const fetchWeatherForecast = async (lat, lon) => {
     return response.data;
 };
 
-// ── Helper: Process Raw Weather Data ─────────
 // ── Helper: Process Raw Weather Data ─────────
 const processWeatherData = (raw) => {
     const daily  = raw.daily;
@@ -200,6 +200,62 @@ router.get('/forecast', auth, requireProfile, async (req, res, next) => {
         // Generate alerts from forecast
         const alerts = generateAlertsFromForecast(weather.daily);
 
+        // ── Save alerts to DB (deduplicated per day) ──────────────────────
+        // Same logic as scheduler so Alerts page shows them too
+        if (alerts.length > 0) {
+            try {
+                const newAlerts = []; // track only newly inserted ones
+                for (const alert of alerts) {
+                    // Only insert if this alert type wasn't already saved today
+                    const existing = await pool.query(
+                        `SELECT id FROM alerts
+                         WHERE farm_id = $1
+                           AND alert_type = $2
+                           AND DATE(created_at) = CURRENT_DATE`,
+                        [farm.id, alert.type]
+                    );
+
+                    if (existing.rows.length === 0) {
+                        const inserted = await pool.query(
+                            `INSERT INTO alerts
+                             (farm_id, alert_type, severity, title, message, alert_date, is_read)
+                             VALUES ($1, $2, $3, $4, $5, $6, FALSE)
+                             RETURNING id, alert_type, severity, title, message`,
+                            [farm.id, alert.type, alert.severity,
+                             alert.title, alert.message, alert.date]
+                        );
+                        newAlerts.push(inserted.rows[0]);
+                    }
+                }
+
+                // Send email + SMS for newly inserted alerts
+                if (newAlerts.length > 0) {
+                    sendAlertEmail(req.user.id, newAlerts).catch(err =>
+                        console.error('[WEATHER] Email send error:', err.message)
+                    );
+                    sendAlertSMS(req.user.id, newAlerts).catch(err =>
+                        console.error('[WEATHER] SMS send error:', err.message)
+                    );
+                }
+
+                // Emit Socket.io for first critical alert
+                const io = req.app.get('io');
+                const firstCritical = alerts.find(a => a.severity === 'critical');
+                if (io && firstCritical) {
+                    io.to(`farm_${farm.id}`).emit('new_alert', {
+                        severity:   firstCritical.severity,
+                        title:      firstCritical.title,
+                        message:    firstCritical.message,
+                        alert_date: firstCritical.date,
+                    });
+                }
+            } catch (saveErr) {
+                // Don't block the weather response if saving fails
+                console.error('[WEATHER] Failed to save alerts to DB:', saveErr.message);
+            }
+        }
+        // ─────────────────────────────────────────────────────────────────
+
         res.json({
             success: true,
             location: {
@@ -243,6 +299,7 @@ router.get('/forecast', auth, requireProfile, async (req, res, next) => {
     next(err);
 }
 });
+
 
 // ==============================================
 // GET /api/weather/today
@@ -292,20 +349,6 @@ router.get('/today', auth, requireProfile, async (req, res, next) => {
 });
 
 
-// DEBUG ROUTE — add temporarily
-router.get('/debug', auth, async (req, res, next) => {
-    try {
-        const farmResult = await pool.query(
-            'SELECT id, latitude, longitude, state, district FROM farms WHERE user_id = $1',
-            [req.user.id]
-        );
-        res.json({
-            user_id: req.user.id,
-            farm: farmResult.rows[0] || 'NO FARM FOUND'
-        });
-    } catch (err) {
-        next(err);
-    }
-});
+
 
 module.exports = router;
