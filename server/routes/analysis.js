@@ -242,6 +242,14 @@ router.post('/run', auth, requireProfile, async (req, res, next) => {
         const aiResult = await aiClient.generateSuggestions(farm, weatherForecast);
         const preds = aiResult.ml_predictions;
 
+        // 1 t/ha = 4.0468 quintals/acre
+        const yield_t_ha = preds.predicted_yield || 0;
+        const yield_q_acre = Math.round(yield_t_ha * 4.0468 * 10) / 10;
+        const total_yield_quintals = Math.round(yield_q_acre * farm.farm_area);
+        const market_price_per_quintal = getMarketPrice(preds.recommended_crop || farm.current_crop);
+        const input_cost = getInputCost(preds.recommended_crop || farm.current_crop, farm.farm_area);
+        const rev = Math.round(total_yield_quintals * market_price_per_quintal);
+
         const analysisData = {
             recommended_crop:          preds.recommended_crop || 'Unknown',
             crop_suitability_score:    0, // not provided by basic model
@@ -253,29 +261,18 @@ router.post('/run', auth, requireProfile, async (req, res, next) => {
             water_amount_mm:           0,
             next_irrigation_date:      new Date(Date.now() + 86400000).toISOString().split('T')[0],
             irrigation_frequency:      'AI recommended',
-            predicted_yield_per_acre:  preds.predicted_yield || 0,
-            total_predicted_yield:     (preds.predicted_yield || 0) * farm.farm_area,
+            predicted_yield_per_acre:  yield_q_acre,
+            total_predicted_yield:     total_yield_quintals,
             yield_confidence:          'high',
-            market_price_per_quintal:  getMarketPrice(preds.recommended_crop || farm.current_crop),
-            gross_revenue:             Math.round(
-                                         (preds.predicted_yield || 0) * farm.farm_area
-                                         * getMarketPrice(preds.recommended_crop || farm.current_crop) * 10
-                                       ), // yield(t/ha) * area * price/quintal * 10 quintals/tonne
-            total_input_cost:          getInputCost(preds.recommended_crop || farm.current_crop, farm.farm_area),
-            net_profit:                Math.round(
-                                         ((preds.predicted_yield || 0) * farm.farm_area
-                                         * getMarketPrice(preds.recommended_crop || farm.current_crop) * 10)
-                                         - getInputCost(preds.recommended_crop || farm.current_crop, farm.farm_area)
-                                       ),
-            roi_percent:               (() => {
-                                         const rev = Math.round((preds.predicted_yield || 0) * farm.farm_area * getMarketPrice(preds.recommended_crop || farm.current_crop) * 10);
-                                         const cost = getInputCost(preds.recommended_crop || farm.current_crop, farm.farm_area);
-                                         return cost > 0 ? Math.round(((rev - cost) / cost) * 100) : 0;
-                                       })(),
+            market_price_per_quintal:  market_price_per_quintal,
+            gross_revenue:             rev,
+            total_input_cost:          input_cost,
+            net_profit:                rev - input_cost,
+            roi_percent:               input_cost > 0 ? Math.round(((rev - input_cost) / input_cost) * 100) : 0,
             season:                    farm.current_season,
             weather_snapshot: {
-                temp: weatherForecast?.[0]?.temp_max || 30,
-                rainfall: weatherForecast?.[0]?.rainfall || 0,
+                temp: weatherForecast?.weather?.temperature || 30,
+                rainfall: weatherForecast?.weather?.rainfall || 0,
                 source: 'open-meteo'
             },
             full_analysis: aiResult
@@ -367,8 +364,8 @@ router.post('/run', auth, requireProfile, async (req, res, next) => {
                 },
                 {
                     category: 'harvest',
-                    title: `🌾 Yield Forecast: ${preds.predicted_yield || 0} t/ha`,
-                    suggestion_text: `Expected yield is ${preds.predicted_yield} tonnes per hectare. Plan your harvest timeline and post-harvest storage in advance.`,
+                    title: `🌾 Yield Forecast: ${yield_q_acre} Qt/Ac`,
+                    suggestion_text: `Expected yield is ${yield_q_acre} quintals per acre. Plan your harvest timeline and post-harvest storage in advance.`,
                     priority: 'medium',
                 },
             ];

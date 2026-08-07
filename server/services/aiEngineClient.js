@@ -151,9 +151,9 @@ const compareCrops = async (farm, cropKeys, landSize) => {
 // ==============================================
 const generateSuggestions = async (farm, weatherForecast, userQuery = "", history = {}) => {
     try {
-        const temp = weatherForecast?.[0]?.temp_max || 30;
-        const hum = 60; // default humidity fallback
-        const rain = weatherForecast?.[0]?.rainfall || 0;
+        const temp = weatherForecast?.weather?.temperature || 30;
+        const hum = weatherForecast?.weather?.humidity || 60;
+        const rain = weatherForecast?.weather?.rainfall || 0;
         
         const payload = {
             user_query: userQuery,
@@ -166,7 +166,7 @@ const generateSuggestions = async (farm, weatherForecast, userQuery = "", histor
             temperature: temp,
             humidity: hum,
             ph: farm.ph_level || 6.5,
-            rainfall: rain * 30, // estimate monthly
+            rainfall: rain > 0 ? rain * 30 : 100, // estimate monthly, fallback to avoid 0
 
             // Fertilizer
             Soil_Type: farm.soil_type || 'Loamy',
@@ -232,25 +232,13 @@ const generateSuggestions = async (farm, weatherForecast, userQuery = "", histor
 // ==============================================
 const generateCategorizedSuggestions = async (farm, weatherForecast) => {
     try {
-        const temp = weatherForecast?.[0]?.temp_max || 30;
-        const hum  = weatherForecast?.[0]?.humidity || 60;
-        const rain = weatherForecast?.[0]?.rainfall || 0;
+        const temp = weatherForecast?.weather?.temperature || 30;
+        const hum  = weatherForecast?.weather?.humidity || 60;
+        const rain = weatherForecast?.weather?.rainfall || 0;
 
         // Calculate 7-day forecast totals/averages
-        let totalRain7Days = 0;
-        let sumTemp7Days = 0;
-        let countDays = 0;
-        
-        if (Array.isArray(weatherForecast) && weatherForecast.length > 0) {
-            const daysToConsider = Math.min(weatherForecast.length, 7);
-            for (let i = 0; i < daysToConsider; i++) {
-                totalRain7Days += (weatherForecast[i].rainfall || weatherForecast[i].rainfall_mm || 0);
-                sumTemp7Days += (weatherForecast[i].temp_max || temp);
-                countDays++;
-            }
-        }
-        
-        const avgTemp7Days = countDays > 0 ? (sumTemp7Days / countDays) : temp;
+        let totalRain7Days = rain * 7;
+        let avgTemp7Days = temp;
 
         const payload = {
             // Crop Recommendation
@@ -260,7 +248,7 @@ const generateCategorizedSuggestions = async (farm, weatherForecast) => {
             temperature: temp,
             humidity: hum,
             ph: farm.ph_level || 6.5,
-            rainfall: rain * 30,
+            rainfall: rain > 0 ? rain * 30 : 100, // fallback to avoid 0
 
             // Fertilizer
             Soil_Type: farm.soil_type || 'Loamy',

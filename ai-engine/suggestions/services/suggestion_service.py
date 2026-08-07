@@ -186,10 +186,11 @@ class SuggestionService:
         # ─────────────────────────────────────────────────────────────────
         # 4. HARVEST CARD
         # ─────────────────────────────────────────────────────────────────
-        harvest_title = f"🌾 Yield Forecast: {predicted_yield} t/ha — {crop.title()}"
+        yield_q_acre = round(predicted_yield * 4.0468, 1)
+        harvest_title = f"🌾 Yield Forecast: {yield_q_acre} Qt/Ac — {crop.title()}"
         harvest_text = (
             f"ML Model Prediction: Expected yield for your {crop} crop is approximately "
-            f"{predicted_yield} tonnes per hectare.\n\n"
+            f"{yield_q_acre} quintals per acre.\n\n"
             + (f"{crop_ai}\n\n" if crop_ai else
                "Plan your harvest timeline based on the predicted yield and current crop growth stage.\n\n")
             + "Ensure proper post-harvest storage and grading to minimize losses. "
